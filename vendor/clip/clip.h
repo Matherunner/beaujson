@@ -126,7 +126,7 @@ namespace clip {
   // High-level API to put/get UTF8 text in/from the clipboard. These
   // functions returns false in case of error.
   bool set_text(const std::string& value);
-  bool get_text(std::string& value);
+  bool get_text(std::vector<char>& value, size_t padding_size);
 
   // ======================================================================
   // Image

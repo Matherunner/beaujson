@@ -3,37 +3,25 @@
 #include <ncurses.h>
 
 #include "clipboard.hpp"
+#include "simdjson.h"
 
 #define DISABLE_COPY(A)                                                                                                \
     A(const A &) = delete;                                                                                             \
     A &operator=(const A &) = delete;
 
-class AppState
-{
-private:
-    int _rows = 0;
-    int _cols = 0;
+#define DEFAULT_MOVE(A)                                                                                                \
+    A(A &&) = default;                                                                                                 \
+    A &operator=(A &&) = default;
 
-public:
-    AppState() {}
-    ~AppState() {}
-    DISABLE_COPY(AppState)
-
-    inline void set_rows(int rows) { _rows = rows; }
-    inline void set_cols(int cols) { _cols = cols; }
-    inline int rows() const { return _rows; }
-    inline int cols() const { return _cols; }
-};
-
-class MouseEvent
+class mouse_event
 {
 private:
     MEVENT _event;
 
 public:
-    MouseEvent() {}
-    MouseEvent(const MouseEvent &) = delete;
-    MouseEvent &operator=(const MouseEvent &) = delete;
+    mouse_event() {}
+    mouse_event(const mouse_event &) = delete;
+    mouse_event &operator=(const mouse_event &) = delete;
 
     inline MEVENT *data() { return &_event; }
     inline bool left_down() const { return _event.bstate & BUTTON1_PRESSED; }
@@ -52,12 +40,29 @@ public:
     inline int y() const { return _event.y; }
 };
 
+class app_state
+{
+private:
+    int _rows = 0;
+    int _cols = 0;
+
+public:
+    app_state() {}
+    ~app_state() {}
+    DISABLE_COPY(app_state)
+
+    inline void set_rows(int rows) { _rows = rows; }
+    inline void set_cols(int cols) { _cols = cols; }
+    inline int rows() const { return _rows; }
+    inline int cols() const { return _cols; }
+};
+
 template <typename Handler>
-class App
+class main_app
 {
 private:
     Handler _handler;
-    AppState _state;
+    app_state _state;
 
     void init()
     {
@@ -70,6 +75,7 @@ private:
         mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, nullptr);
         curs_set(0);
         enable_mouse_move();
+        update_dimensions();
     }
 
     void cleanup()
@@ -90,19 +96,26 @@ private:
         fflush(stdout);
     }
 
-    inline void call_handler_mouse(const AppState &state, const MouseEvent &event) { _handler.mouse(state, event); }
-    inline void call_handler_resize(const AppState &state) { _handler.resize(state); }
+    void update_dimensions()
+    {
+        _state.set_rows(getmaxy(stdscr));
+        _state.set_cols(getmaxx(stdscr));
+    }
+
+    inline void call_handler_start(const app_state &state) { _handler.start(state); }
+    inline void call_handler_mouse(const app_state &state, const mouse_event &event) { _handler.mouse(state, event); }
+    inline void call_handler_resize(const app_state &state) { _handler.resize(state); }
 
 public:
-    App(Handler &&handler) : _handler(std::move(handler)) { init(); }
-    ~App() { cleanup(); }
-    DISABLE_COPY(App)
+    main_app(Handler &&handler) : _handler(std::move(handler)) { init(); }
+    ~main_app() { cleanup(); }
+    DISABLE_COPY(main_app)
 
     void run()
     {
-        bool active = true;
-        MouseEvent mevent;
-        while (active)
+        mouse_event mevent;
+        call_handler_start(_state);
+        for (;;)
         {
             int c = getch();
             switch (c)
@@ -115,22 +128,41 @@ public:
                 break;
 
             case KEY_RESIZE:
-                _state.set_rows(getmaxy(stdscr));
-                _state.set_cols(getmaxx(stdscr));
+                update_dimensions();
                 call_handler_resize(_state);
                 break;
 
             case 3:
-                active = false;
-                break;
+                goto out;
             }
         }
+    out:;
     }
 };
 
-struct MainHandler
+class main_handler
 {
-    void mouse(const AppState &state, const MouseEvent &event)
+private:
+    std::vector<char> _clipboard_content;
+    simdjson::ondemand::parser _json_parser;
+
+public:
+    main_handler() {}
+    DISABLE_COPY(main_handler)
+    DEFAULT_MOVE(main_handler)
+
+    void start(const app_state &state)
+    {
+        clipboard::get_clipboard_text(_clipboard_content, simdjson::SIMDJSON_PADDING);
+        mvprintw(3, 0, "STRING: size=%ld cap=%ld", _clipboard_content.size(), _clipboard_content.capacity());
+        // -1 to the size to exclude null terminator
+        simdjson::ondemand::document doc = _json_parser.iterate(
+            _clipboard_content.data(), _clipboard_content.size() - 1, _clipboard_content.capacity());
+        simdjson::ondemand::value value = doc;
+        mvprintw(4, 0, "IS OBJ = %b", value.type().take_value() == simdjson::ondemand::json_type::object);
+    }
+
+    void mouse(const app_state &state, const mouse_event &event)
     {
         move(0, 0);
         clrtoeol();
@@ -140,12 +172,12 @@ struct MainHandler
                  event.left_up(), event.right_down(), event.right_up(), event.scroll_up(), event.scroll_down());
     }
 
-    void resize(const AppState &state) {}
+    void resize(const app_state &state) { mvprintw(2, 0, "RESIZED: rows=%d cols=%d", state.rows(), state.cols()); }
 };
 
 int main()
 {
-    App app(MainHandler{});
+    main_app app(main_handler{});
     app.run();
     return 0;
 }

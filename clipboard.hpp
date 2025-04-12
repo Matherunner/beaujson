@@ -1,8 +1,8 @@
 #pragma once
 
-#include <string>
+#include <vector>
 
 namespace clipboard
 {
-    void get_clipboard_text(std::string &content);
+    void get_clipboard_text(std::vector<char> &content, size_t padding_size);
 }

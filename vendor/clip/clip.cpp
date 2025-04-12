@@ -112,7 +112,7 @@ bool set_text(const std::string& value) {
     return false;
 }
 
-bool get_text(std::string& value) {
+bool get_text(std::vector<char>& value, size_t padding_size) {
   lock l;
   if (!l.locked())
     return false;
@@ -123,9 +123,10 @@ bool get_text(std::string& value) {
 
   size_t len = l.get_data_length(f);
   if (len > 0) {
-    std::vector<char> buf(len);
-    l.get_data(f, &buf[0], len);
-    value = &buf[0];
+    value.clear();
+    value.reserve(len + padding_size);
+    value.resize(len);
+    l.get_data(f, &value[0], len);
     return true;
   }
   else {
