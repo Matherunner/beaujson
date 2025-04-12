@@ -17,6 +17,7 @@ add_subdirectory(
 
 add_executable(beaujson
     main.cpp
+    clipboard.cpp
 )
 
 find_package(Curses REQUIRED)

@@ -2,6 +2,8 @@
 #include <csignal>
 #include <ncurses.h>
 
+#include "clipboard.hpp"
+
 void enable_mouse_move()
 {
     puts("\e[?1003h");
@@ -23,6 +25,7 @@ int main()
     mouseinterval(0);
     keypad(stdscr, TRUE);
     mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, nullptr);
+    curs_set(0);
 
     enable_mouse_move();
 
@@ -51,8 +54,11 @@ int main()
         {
             break;
         }
-        else if (ch == 'a')
+        else if (ch == 'v')
         {
+            std::string content;
+            clipboard::get_clipboard_text(content);
+            mvaddstr(5, 0, content.c_str());
         }
         else
         {
