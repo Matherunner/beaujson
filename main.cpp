@@ -20,8 +20,7 @@ private:
 
 public:
     mouse_event() {}
-    mouse_event(const mouse_event &) = delete;
-    mouse_event &operator=(const mouse_event &) = delete;
+    DISABLE_COPY(mouse_event)
 
     inline MEVENT *data() { return &_event; }
     inline bool left_down() const { return _event.bstate & BUTTON1_PRESSED; }
