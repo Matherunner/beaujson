@@ -3,15 +3,8 @@
 #include <ncurses.h>
 
 #include "clipboard.hpp"
+#include "common.hpp"
 #include "simdjson.h"
-
-#define DISABLE_COPY(A)                                                                                                \
-    A(const A &) = delete;                                                                                             \
-    A &operator=(const A &) = delete;
-
-#define DEFAULT_MOVE(A)                                                                                                \
-    A(A &&) = default;                                                                                                 \
-    A &operator=(A &&) = default;
 
 class mouse_event
 {

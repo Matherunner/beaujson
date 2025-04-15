@@ -14,11 +14,24 @@ set(CLIP_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(CLIP_TESTS OFF CACHE BOOL "" FORCE)
 set(CLIP_INSTALL OFF CACHE BOOL "" FORCE)
 
+find_package(Catch2 3 REQUIRED)
+
+add_executable(tests
+    json.cpp
+    json_test.cpp
+)
+
+target_link_libraries(tests PRIVATE
+    simdjson
+    Catch2::Catch2WithMain
+)
+
 add_subdirectory(vendor/clip)
 add_subdirectory(vendor/simdjson)
 
 add_executable(beaujson
     main.cpp
+    json.cpp
     clipboard.cpp
 )
 
