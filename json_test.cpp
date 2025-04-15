@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <fstream>
 
-namespace util
+namespace testutil
 {
     std::vector<char> load_file(const char *path)
     {
@@ -21,6 +21,6 @@ namespace util
 
 TEST_CASE("Factorials are computed", "[factorial]")
 {
-    auto data = util::load_file("../data/file1.json");
+    auto data = testutil::load_file("../data/file1.json");
     json::load(data);
 }

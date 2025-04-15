@@ -19,6 +19,8 @@ find_package(Catch2 3 REQUIRED)
 add_executable(tests
     json.cpp
     json_test.cpp
+    util.cpp
+    util_test.cpp
 )
 
 target_link_libraries(tests PRIVATE
@@ -33,6 +35,7 @@ add_executable(beaujson
     main.cpp
     json.cpp
     clipboard.cpp
+    util.cpp
 )
 
 find_package(Curses REQUIRED)

@@ -2,6 +2,7 @@
 
 #include "common.hpp"
 #include "simdjson.h"
+#include "util.hpp"
 #include <iostream>
 #include <stdexcept>
 
@@ -65,7 +66,13 @@ public:
     }
     virtual ~view_model()
     {
-        // TODO: delete stuff
+        auto *cur = _head->next;
+        while (cur != &_dummy_tail)
+        {
+            auto *next = cur->next;
+            delete cur;
+            cur = next;
+        }
     }
     DISABLE_COPY(view_model)
     DEFAULT_MOVE(view_model)
@@ -81,8 +88,8 @@ public:
 
     void debug_print()
     {
-        view_model_node *cur = _head->next;
-        while (cur)
+        auto *cur = _head->next;
+        while (cur != &_dummy_tail)
         {
             std::cout << "LINE: ";
             for (int i = 0; i < cur->entry.indent; ++i)
@@ -192,7 +199,7 @@ static void doc_to_view_model(view_model &model, sjo::value doc, std::optional<s
         model.append(view_entry(level, view_entry_kind::object_open, key, "{"));
         for (auto elem : doc.get_object())
         {
-            doc_to_view_model(model, elem.value(), elem.key_raw_json_token().value(), level + 1);
+            doc_to_view_model(model, elem.value(), elem.unescaped_key(), level + 1);
         }
         break;
     case sjo::json_type::array:
@@ -203,16 +210,16 @@ static void doc_to_view_model(view_model &model, sjo::value doc, std::optional<s
         }
         break;
     case sjo::json_type::boolean:
-        model.append(view_entry(level, view_entry_kind::boolean, key, doc.raw_json_token()));
+        model.append(view_entry(level, view_entry_kind::boolean, key, util::trim_space(doc.raw_json_token())));
         break;
     case sjo::json_type::number:
-        model.append(view_entry(level, view_entry_kind::number, key, doc.raw_json_token()));
+        model.append(view_entry(level, view_entry_kind::number, key, util::trim_space(doc.raw_json_token())));
         break;
     case sjo::json_type::string:
-        model.append(view_entry(level, view_entry_kind::string, key, doc.raw_json_token()));
+        model.append(view_entry(level, view_entry_kind::string, key, util::trim_space(doc.raw_json_token())));
         break;
     case sjo::json_type::null:
-        model.append(view_entry(level, view_entry_kind::null, key, doc.raw_json_token()));
+        model.append(view_entry(level, view_entry_kind::null, key, util::trim_space(doc.raw_json_token())));
         break;
     default:
         throw std::logic_error("unknown doc type");
