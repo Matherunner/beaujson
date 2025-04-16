@@ -45,6 +45,7 @@ struct view_model_node
 
     view_model_node *next;
     view_model_node *prev;
+    view_model_node *skip;
     view_entry entry;
 };
 
@@ -77,11 +78,15 @@ public:
     DISABLE_COPY(view_model)
     DEFAULT_MOVE(view_model)
 
+    inline view_model_node *head() { return _head->next; }
+    inline view_model_node *tail() { return _tail->prev; }
+
     void append(view_entry &&entry)
     {
         auto *node = new view_model_node(std::move(entry));
         node->prev = _tail->prev;
         node->next = _tail;
+        node->skip = nullptr;
         _tail->prev->next = node;
         _tail->prev = node;
     }
@@ -100,7 +105,12 @@ public:
             {
                 std::cout << cur->entry.key.value() << ": ";
             }
-            std::cout << cur->entry.value << '\n';
+            std::cout << cur->entry.value;
+            if (cur->skip)
+            {
+                std::cout << " (skip to " << cur->skip->entry.key.value_or("<no key>") << ")";
+            }
+            std::cout << '\n';
             cur = cur->next;
         }
     }
@@ -226,11 +236,51 @@ static void doc_to_view_model(view_model &model, sjo::value doc, std::optional<s
     }
 }
 
+static void add_skips(view_model &model)
+{
+    std::vector<view_model_node *> stack;
+    auto *cur = model.head();
+    int indent = 0;
+    while (cur)
+    {
+        if (cur->entry.indent < indent)
+        {
+            while (!stack.empty())
+            {
+                auto top = stack.back();
+                if (top->entry.indent < cur->entry.indent)
+                {
+                    break;
+                }
+                top->skip = cur;
+                stack.pop_back();
+            }
+            indent = cur->entry.indent;
+        }
+        switch (cur->entry.kind)
+        {
+        case view_entry_kind::object_open:
+        case view_entry_kind::array_open:
+            stack.emplace_back(cur);
+            ++indent;
+            break;
+        }
+        cur = cur->next;
+    }
+    for (auto elem : stack)
+    {
+        // FIXME: this creates problem if obj/arr is at the root: it has nothing to skip to even though it should be
+        // collapsible!
+        elem->skip = nullptr;
+    }
+}
+
 void json::load(const std::vector<char> &content)
 {
     sjo::parser parser;
     sjo::document doc = parser.iterate(content.data(), content.size(), content.capacity());
     view_model model;
     doc_to_view_model(model, std::move(doc));
+    add_skips(model);
     model.debug_print();
 }
