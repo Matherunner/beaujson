@@ -1,6 +1,9 @@
 #include "json.hpp"
 
+#include "simdjson.h"
 #include <stdexcept>
+
+namespace sjo = simdjson::ondemand;
 
 // The following doesn't work!
 
@@ -123,7 +126,10 @@ namespace json
         }
     }
 
-    static void doc_to_view_model(view_model &model) { doc_to_view_model(model, model.document(), std::nullopt, 0); }
+    static void doc_to_view_model(view_model &model, sjo::document doc)
+    {
+        doc_to_view_model(model, doc, std::nullopt, 0);
+    }
 
     static void add_skips(view_model &model)
     {
@@ -164,14 +170,11 @@ namespace json
         }
     }
 
-    sjo::parser parser;
-
-
     view_model load(const std::vector<char> &content)
     {
-        sjo::document doc = parser.iterate(content.data(), content.size(), content.capacity());
-        view_model model(std::move(doc));
-        doc_to_view_model(model);
+        view_model model(sjo::parser{});
+        sjo::document doc = model.parser().iterate(content.data(), content.size(), content.capacity());
+        doc_to_view_model(model, std::move(doc));
         add_skips(model);
         return model;
     }

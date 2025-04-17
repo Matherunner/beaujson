@@ -10,8 +10,6 @@
 
 namespace json
 {
-    namespace sjo = simdjson::ondemand;
-
     enum class view_entry_kind : int
     {
         object_open,
@@ -57,14 +55,15 @@ namespace json
     class view_model
     {
     private:
-        view_model_node *_head;
-        view_model_node *_tail;
+        simdjson::ondemand::parser _parser;
         view_model_node _dummy_head;
         view_model_node _dummy_tail;
-        sjo::document _doc;
+        view_model_node *_head;
+        view_model_node *_tail;
 
     public:
-        view_model(sjo::document &&doc) : _head(&_dummy_head), _tail(&_dummy_tail), _doc(std::move(doc))
+        view_model(simdjson::ondemand::parser &&parser)
+            : _head(&_dummy_head), _tail(&_dummy_tail), _parser(std::move(parser))
         {
             _dummy_head.next = &_dummy_tail;
             _dummy_head.prev = nullptr;
@@ -84,9 +83,9 @@ namespace json
         DISABLE_COPY(view_model)
         DEFAULT_MOVE(view_model)
 
+        inline simdjson::ondemand::parser &parser() { return _parser; }
         inline view_model_node *head() { return _head->next; }
         inline view_model_node *tail() { return _tail->prev; }
-        inline sjo::document &document() { return _doc; }
 
         void append(view_entry &&entry)
         {
