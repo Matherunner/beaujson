@@ -22,5 +22,6 @@ namespace testutil
 TEST_CASE("Factorials are computed", "[factorial]")
 {
     auto data = testutil::load_file("../data/file1.json");
-    json::load(data);
+    auto view_model = json::load(data);
+    view_model.debug_print();
 }
