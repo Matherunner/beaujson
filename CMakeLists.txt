@@ -40,7 +40,10 @@ add_executable(beaujson
 
 find_package(Curses REQUIRED)
 
-include_directories(${CURSES_INCLUDE_DIR})
+include_directories(
+    ${CURSES_INCLUDE_DIR}
+    vendor/CLI11
+)
 
 if(CMAKE_BUILD_TYPE MATCHES "Release")
     set_property(TARGET beaujson PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)

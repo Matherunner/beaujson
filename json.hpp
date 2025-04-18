@@ -75,7 +75,7 @@ namespace json
             _dummy_tail.next = nullptr;
             _dummy_tail.prev = &_dummy_head;
         }
-        virtual ~view_model()
+        ~view_model()
         {
             // FIXME: the following causes crash! Might be because this is called when destroyed
 

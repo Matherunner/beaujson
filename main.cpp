@@ -1,12 +1,15 @@
 #include <csignal>
 #include <cstdio>
 #include <format>
+#include <variant>
+
 #include <ncurses.h>
 
 #include "clipboard.hpp"
 #include "common.hpp"
 #include "json.hpp"
 #include "simdjson.h"
+#include "vendor/CLI11/CLI11.hpp"
 
 class mouse_event
 {
@@ -166,7 +169,7 @@ public:
 class main_handler
 {
 private:
-    std::optional<json::view_model> _view_model;
+    json::view_model _view_model;
     json::view_model_node *_view_model_cur;
     int _row_highlight = -1;
 
@@ -175,7 +178,7 @@ private:
         erase();
         auto *p = _view_model_cur;
         int i = 0;
-        for (; i < rows && p != _view_model->tail(); ++i)
+        for (; i < rows && p != _view_model.tail(); ++i)
         {
             std::string indent;
             for (int j = 0; j < p->entry.indent; ++j)
@@ -200,17 +203,39 @@ private:
         }
     }
 
+    static json::view_model load_view_model_from_clipboard()
+    {
+        std::vector<char> content;
+        clipboard::get_clipboard_text(content, simdjson::SIMDJSON_PADDING);
+        return json::load(content);
+    }
+
+    static json::view_model load_view_model_from_file(const std::string &file_path)
+    {
+        auto file_size = std::filesystem::file_size(file_path);
+        std::vector<char> data;
+        data.reserve(file_size + simdjson::SIMDJSON_PADDING);
+        data.resize(file_size);
+        {
+            std::ifstream in(file_path, std::ios_base::in | std::ios_base::binary);
+            in.read(data.data(), file_size);
+            if (in.bad())
+            {
+                throw std::runtime_error("unable to read file");
+            }
+        }
+        return json::load(data);
+    }
+
 public:
-    main_handler() {}
+    main_handler() : _view_model(main_handler::load_view_model_from_clipboard()) {}
+    main_handler(const std::string &file_path) : _view_model(main_handler::load_view_model_from_file(file_path)) {}
     DISABLE_COPY(main_handler)
     DEFAULT_MOVE(main_handler)
 
     app_control start(const app_state &state)
     {
-        std::vector<char> _clipboard_content;
-        clipboard::get_clipboard_text(_clipboard_content, simdjson::SIMDJSON_PADDING);
-        _view_model = json::load(_clipboard_content);
-        _view_model_cur = _view_model->head();
+        _view_model_cur = _view_model.head();
         print_json(state.rows());
         return app_control::ok;
     }
@@ -221,7 +246,7 @@ public:
         {
             auto *p = _view_model_cur;
             int i = 0;
-            for (; i < state.rows() && i < event.y() && p != _view_model->tail(); ++i)
+            for (; i < state.rows() && i < event.y() && p != _view_model.tail(); ++i)
             {
                 p = p->collapsed ? p->skip : p->next;
             }
@@ -258,7 +283,7 @@ public:
         {
         case 'j':
         case KEY_DOWN:
-            if (_view_model_cur->next != _view_model->tail())
+            if (_view_model_cur->next != _view_model.tail())
             {
                 _view_model_cur = _view_model_cur->next;
                 print_json(state.rows());
@@ -270,7 +295,7 @@ public:
             break;
         case 'k':
         case KEY_UP:
-            if (_view_model_cur != _view_model->head())
+            if (_view_model_cur != _view_model.head())
             {
                 _view_model_cur = _view_model_cur->prev;
                 print_json(state.rows());
@@ -287,9 +312,49 @@ public:
     }
 };
 
-int main()
+struct cli_options
 {
-    main_app app(main_handler{});
+    cli_options() = default;
+    DEFAULT_MOVE(cli_options)
+    DISABLE_COPY(cli_options)
+
+    std::string input_file;
+};
+
+static std::variant<cli_options, int> parse_cli(int argc, char **argv)
+{
+    cli_options opts;
+    CLI::App cli{"beaujson - JSON viewer in your terminal"};
+    cli.add_option("file", opts.input_file, "Input JSON file");
+    try
+    {
+        cli.parse(argc, argv);
+    }
+    catch (const CLI::ParseError &e)
+    {
+        return cli.exit(e);
+    }
+    return opts;
+}
+
+static main_handler make_main_handler(const cli_options &opts)
+{
+    if (opts.input_file.empty())
+    {
+        return main_handler();
+    }
+    return main_handler(opts.input_file);
+}
+
+int main(int argc, char **argv)
+{
+    auto opts_or_ret = parse_cli(argc, argv);
+    if (std::holds_alternative<int>(opts_or_ret))
+    {
+        return std::get<int>(opts_or_ret);
+    }
+    auto opts = std::move(std::get<cli_options>(opts_or_ret));
+    main_app app(make_main_handler(opts));
     app.run();
     return 0;
 }
