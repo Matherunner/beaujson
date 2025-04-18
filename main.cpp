@@ -1,5 +1,6 @@
 #include <csignal>
 #include <cstdio>
+#include <format>
 #include <ncurses.h>
 
 #include "clipboard.hpp"
@@ -166,32 +167,32 @@ class main_handler
 {
 private:
     std::optional<json::view_model> _view_model;
-    std::vector<char> _clipboard_content;
     json::view_model_node *_view_model_cur;
 
     void print_json(int rows)
     {
         erase();
         auto *p = _view_model_cur;
-        for (int i = 0; i < rows; ++i)
+        int i = 0;
+        for (; i < rows && p != _view_model->tail(); ++i)
         {
-            if (p != _view_model->tail())
+            std::string indent;
+            for (int j = 0; j < p->entry.indent; ++j)
             {
-                std::string indent;
-                for (int j = 0; j < p->entry.indent; ++j)
-                {
-                    indent += ' ';
-                }
-                auto key = p->entry.key.has_value() ? std::string(p->entry.key.value()) + ": " : "";
-                auto value = std::string(p->entry.value);
-                mvprintw(i, 0, "%s%s%s", indent.c_str(), key.c_str(), value.c_str());
-                p = p->next;
+                indent += ' ';
             }
-            else
-            {
-                mvaddstr(i, 0, "~");
-            }
+            // TODO: don't allocate strings here!
+            auto key = p->entry.key.has_value() ? std::string(p->entry.key.value()) + ": " : "";
+            auto value = std::string(p->entry.value);
+            mvprintw(i, 0, "%s%s%s", indent.c_str(), key.c_str(), value.c_str());
+            p = p->collapsed ? p->skip : p->next;
         }
+        attr_on(A_BOLD, nullptr);
+        for (; i < rows; ++i)
+        {
+            mvaddstr(i, 0, "~");
+        }
+        attr_off(A_BOLD, nullptr);
     }
 
 public:
@@ -201,6 +202,7 @@ public:
 
     app_control start(const app_state &state)
     {
+        std::vector<char> _clipboard_content;
         clipboard::get_clipboard_text(_clipboard_content, simdjson::SIMDJSON_PADDING);
         _view_model = json::load(_clipboard_content);
         _view_model_cur = _view_model->head();
@@ -215,6 +217,18 @@ public:
             move(state.rows() - 1, 0);
             clrtoeol();
             mvprintw(state.rows() - 1, 0, "MOUSE LEFT DOWN x=%d y=%d", event.x(), event.y());
+
+            auto *p = _view_model_cur;
+            int i = 0;
+            for (; i < state.rows() && i < event.y() && p != _view_model->tail(); ++i)
+            {
+                p = p->collapsed ? p->skip : p->next;
+            }
+            if (json::is_collapsible(p->entry.kind))
+            {
+                p->collapsed = !p->collapsed;
+                print_json(state.rows());
+            }
         }
         return app_control::ok;
     }
@@ -236,6 +250,10 @@ public:
                 _view_model_cur = _view_model_cur->next;
                 print_json(state.rows());
             }
+            else
+            {
+                beep();
+            }
             break;
         case 'k':
         case KEY_UP:
@@ -243,6 +261,10 @@ public:
             {
                 _view_model_cur = _view_model_cur->prev;
                 print_json(state.rows());
+            }
+            else
+            {
+                beep();
             }
             break;
         case 'q':

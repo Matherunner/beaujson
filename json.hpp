@@ -20,6 +20,11 @@ namespace json
         null,
     };
 
+    constexpr inline bool is_collapsible(view_entry_kind kind)
+    {
+        return kind == view_entry_kind::object_open || kind == view_entry_kind::array_open;
+    }
+
     struct view_entry
     {
         view_entry() {}
