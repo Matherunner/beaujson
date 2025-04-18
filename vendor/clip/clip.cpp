@@ -121,12 +121,12 @@ bool get_text(std::vector<char>& value, size_t padding_size) {
   if (!l.is_convertible(f))
     return false;
 
-  size_t len = l.get_data_length(f);
+  size_t len = l.get_data_length(f) - 1;
   if (len > 0) {
     value.clear();
     value.reserve(len + padding_size);
     value.resize(len);
-    l.get_data(f, &value[0], len);
+    l.get_data(f, value.data(), len);
     return true;
   }
   else {

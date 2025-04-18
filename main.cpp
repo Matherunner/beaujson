@@ -4,6 +4,7 @@
 
 #include "clipboard.hpp"
 #include "common.hpp"
+#include "json.hpp"
 #include "simdjson.h"
 
 class mouse_event
@@ -30,6 +31,12 @@ public:
     inline bool shift() const { return _event.bstate & BUTTON_SHIFT; }
     inline int x() const { return _event.x; }
     inline int y() const { return _event.y; }
+};
+
+enum class app_control : int
+{
+    ok,
+    stop,
 };
 
 class app_state
@@ -94,9 +101,13 @@ private:
         _state.set_cols(getmaxx(stdscr));
     }
 
-    inline void call_handler_start(const app_state &state) { _handler.start(state); }
-    inline void call_handler_mouse(const app_state &state, const mouse_event &event) { _handler.mouse(state, event); }
-    inline void call_handler_resize(const app_state &state) { _handler.resize(state); }
+    inline app_control call_handler_start(const app_state &state) { return _handler.start(state); }
+    inline app_control call_handler_mouse(const app_state &state, const mouse_event &event)
+    {
+        return _handler.mouse(state, event);
+    }
+    inline app_control call_handler_resize(const app_state &state) { return _handler.resize(state); }
+    inline app_control call_handler_key(const app_state &state, int c) { return _handler.key(state, c); }
 
 public:
     main_app(Handler &&handler) : _handler(std::move(handler)) { init(); }
@@ -106,7 +117,11 @@ public:
     void run()
     {
         mouse_event mevent;
-        call_handler_start(_state);
+        app_control ret = call_handler_start(_state);
+        if (ret == app_control::stop)
+        {
+            return;
+        }
         for (;;)
         {
             int c = getch();
@@ -115,17 +130,32 @@ public:
             case KEY_MOUSE:
                 if (getmouse(mevent.data()) == OK)
                 {
-                    call_handler_mouse(_state, mevent);
+                    ret = call_handler_mouse(_state, mevent);
+                    if (ret == app_control::stop)
+                    {
+                        return;
+                    }
                 }
                 break;
 
             case KEY_RESIZE:
                 update_dimensions();
-                call_handler_resize(_state);
+                ret = call_handler_resize(_state);
+                if (ret == app_control::stop)
+                {
+                    return;
+                }
                 break;
 
             case 3:
                 goto out;
+
+            default:
+                ret = call_handler_key(_state, c);
+                if (ret == app_control::stop)
+                {
+                    return;
+                }
             }
         }
     out:;
@@ -135,36 +165,91 @@ public:
 class main_handler
 {
 private:
+    std::optional<json::view_model> _view_model;
     std::vector<char> _clipboard_content;
-    simdjson::ondemand::parser _json_parser;
+    json::view_model_node *_view_model_cur;
+
+    void print_json(int rows)
+    {
+        erase();
+        auto *p = _view_model_cur;
+        for (int i = 0; i < rows; ++i)
+        {
+            if (p != _view_model->tail())
+            {
+                std::string indent;
+                for (int j = 0; j < p->entry.indent; ++j)
+                {
+                    indent += ' ';
+                }
+                auto key = p->entry.key.has_value() ? std::string(p->entry.key.value()) + ": " : "";
+                auto value = std::string(p->entry.value);
+                mvprintw(i, 0, "%s%s%s", indent.c_str(), key.c_str(), value.c_str());
+                p = p->next;
+            }
+            else
+            {
+                mvaddstr(i, 0, "~");
+            }
+        }
+    }
 
 public:
     main_handler() {}
     DISABLE_COPY(main_handler)
     DEFAULT_MOVE(main_handler)
 
-    void start(const app_state &state)
+    app_control start(const app_state &state)
     {
         clipboard::get_clipboard_text(_clipboard_content, simdjson::SIMDJSON_PADDING);
-        mvprintw(3, 0, "STRING: size=%ld cap=%ld", _clipboard_content.size(), _clipboard_content.capacity());
-        // -1 to the size to exclude null terminator
-        simdjson::ondemand::document doc = _json_parser.iterate(
-            _clipboard_content.data(), _clipboard_content.size() - 1, _clipboard_content.capacity());
-        simdjson::ondemand::value value = doc;
-        mvprintw(4, 0, "IS OBJ = %b", value.type().take_value() == simdjson::ondemand::json_type::object);
+        _view_model = json::load(_clipboard_content);
+        _view_model_cur = _view_model->head();
+        print_json(state.rows());
+        return app_control::ok;
     }
 
-    void mouse(const app_state &state, const mouse_event &event)
+    app_control mouse(const app_state &state, const mouse_event &event)
     {
-        move(0, 0);
-        clrtoeol();
-        mvprintw(0, 0,
-                 "MOUSE: x=%d y=%d ctrl=%b alt=%b shift=%b move=%b bldown=%b blup=%b brdown=%b brup=%b sup=%b sdown=%b",
-                 event.x(), event.y(), event.ctrl(), event.alt(), event.shift(), event.move(), event.left_down(),
-                 event.left_up(), event.right_down(), event.right_up(), event.scroll_up(), event.scroll_down());
+        if (event.left_down())
+        {
+            move(state.rows() - 1, 0);
+            clrtoeol();
+            mvprintw(state.rows() - 1, 0, "MOUSE LEFT DOWN x=%d y=%d", event.x(), event.y());
+        }
+        return app_control::ok;
     }
 
-    void resize(const app_state &state) { mvprintw(2, 0, "RESIZED: rows=%d cols=%d", state.rows(), state.cols()); }
+    app_control resize(const app_state &state)
+    {
+        mvprintw(2, 0, "RESIZED: rows=%d cols=%d", state.rows(), state.cols());
+        return app_control::ok;
+    }
+
+    app_control key(const app_state &state, int ch)
+    {
+        switch (ch)
+        {
+        case 'j':
+        case KEY_DOWN:
+            if (_view_model_cur->next != _view_model->tail())
+            {
+                _view_model_cur = _view_model_cur->next;
+                print_json(state.rows());
+            }
+            break;
+        case 'k':
+        case KEY_UP:
+            if (_view_model_cur != _view_model->head())
+            {
+                _view_model_cur = _view_model_cur->prev;
+                print_json(state.rows());
+            }
+            break;
+        case 'q':
+            return app_control::stop;
+        }
+        return app_control::ok;
+    }
 };
 
 int main()

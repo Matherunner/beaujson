@@ -72,13 +72,15 @@ namespace json
         }
         virtual ~view_model()
         {
-            auto *cur = _head->next;
-            while (cur != &_dummy_tail)
-            {
-                auto *next = cur->next;
-                delete cur;
-                cur = next;
-            }
+            // FIXME: the following causes crash! Might be because this is called when destroyed
+
+            // auto *cur = _head->next;
+            // while (cur != &_dummy_tail)
+            // {
+            //     auto *next = cur->next;
+            //     delete cur;
+            //     cur = next;
+            // }
         }
         DISABLE_COPY(view_model)
         DEFAULT_MOVE(view_model)
