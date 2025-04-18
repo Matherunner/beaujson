@@ -168,6 +168,7 @@ class main_handler
 private:
     std::optional<json::view_model> _view_model;
     json::view_model_node *_view_model_cur;
+    int _row_highlight = -1;
 
     void print_json(int rows)
     {
@@ -193,6 +194,10 @@ private:
             mvaddstr(i, 0, "~");
         }
         attr_off(A_BOLD, nullptr);
+        if (_row_highlight >= 0)
+        {
+            mvchgat(_row_highlight, 0, -1, A_STANDOUT, 0, nullptr);
+        }
     }
 
 public:
@@ -214,10 +219,6 @@ public:
     {
         if (event.left_down())
         {
-            move(state.rows() - 1, 0);
-            clrtoeol();
-            mvprintw(state.rows() - 1, 0, "MOUSE LEFT DOWN x=%d y=%d", event.x(), event.y());
-
             auto *p = _view_model_cur;
             int i = 0;
             for (; i < state.rows() && i < event.y() && p != _view_model->tail(); ++i)
@@ -229,6 +230,18 @@ public:
                 p->collapsed = !p->collapsed;
                 print_json(state.rows());
             }
+        }
+        if (event.move())
+        {
+            if (_row_highlight != event.y())
+            {
+                if (_row_highlight >= 0)
+                {
+                    mvchgat(_row_highlight, 0, -1, A_NORMAL, 0, nullptr);
+                }
+                mvchgat(event.y(), 0, -1, A_STANDOUT, 0, nullptr);
+            }
+            _row_highlight = event.y();
         }
         return app_control::ok;
     }
