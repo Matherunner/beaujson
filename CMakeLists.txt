@@ -38,6 +38,7 @@ add_executable(beaujson
     util.cpp
 )
 
+set(CURSES_NEED_WIDE TRUE)
 find_package(Curses REQUIRED)
 
 include_directories(

@@ -55,6 +55,10 @@ namespace json
         ~view_model_node() = default;
         DISABLE_COPY(view_model_node)
         DEFAULT_MOVE(view_model_node)
+
+        inline view_model_node *forward() const { return collapsed ? skip : next; }
+        // TODO: backward needs to work! Need another pointer!
+        // inline view_model_node *backward() const { }a
     };
 
     class view_model

@@ -1,3 +1,4 @@
+#include <clocale>
 #include <csignal>
 #include <cstdio>
 #include <format>
@@ -169,6 +170,7 @@ public:
 class main_handler
 {
 private:
+    std::vector<char> _content;
     json::view_model _view_model;
     json::view_model_node *_view_model_cur;
     int _row_highlight = -1;
@@ -188,7 +190,8 @@ private:
             // TODO: don't allocate strings here!
             auto key = p->entry.key.has_value() ? std::string(p->entry.key.value()) + ": " : "";
             auto value = std::string(p->entry.value);
-            mvprintw(i, 0, "%s%s%s", indent.c_str(), key.c_str(), value.c_str());
+            auto state = json::is_collapsible(p->entry.kind) ? p->collapsed ? " [+]" : " [-]" : "";
+            mvprintw(i, 0, "%s%s%s%s", indent.c_str(), key.c_str(), value.c_str(), state);
             p = p->collapsed ? p->skip : p->next;
         }
         attr_on(A_BOLD, nullptr);
@@ -203,33 +206,31 @@ private:
         }
     }
 
-    static json::view_model load_view_model_from_clipboard()
+    json::view_model load_view_model_from_clipboard()
     {
-        std::vector<char> content;
-        clipboard::get_clipboard_text(content, simdjson::SIMDJSON_PADDING);
-        return json::load(content);
+        clipboard::get_clipboard_text(_content, simdjson::SIMDJSON_PADDING);
+        return json::load(_content);
     }
 
-    static json::view_model load_view_model_from_file(const std::string &file_path)
+    json::view_model load_view_model_from_file(const std::string &file_path)
     {
         auto file_size = std::filesystem::file_size(file_path);
-        std::vector<char> data;
-        data.reserve(file_size + simdjson::SIMDJSON_PADDING);
-        data.resize(file_size);
+        _content.reserve(file_size + simdjson::SIMDJSON_PADDING);
+        _content.resize(file_size);
         {
             std::ifstream in(file_path, std::ios_base::in | std::ios_base::binary);
-            in.read(data.data(), file_size);
+            in.read(_content.data(), file_size);
             if (in.bad())
             {
                 throw std::runtime_error("unable to read file");
             }
         }
-        return json::load(data);
+        return json::load(_content);
     }
 
 public:
-    main_handler() : _view_model(main_handler::load_view_model_from_clipboard()) {}
-    main_handler(const std::string &file_path) : _view_model(main_handler::load_view_model_from_file(file_path)) {}
+    main_handler() : _view_model(load_view_model_from_clipboard()) {}
+    main_handler(const std::string &file_path) : _view_model(load_view_model_from_file(file_path)) {}
     DISABLE_COPY(main_handler)
     DEFAULT_MOVE(main_handler)
 
@@ -273,7 +274,7 @@ public:
 
     app_control resize(const app_state &state)
     {
-        mvprintw(2, 0, "RESIZED: rows=%d cols=%d", state.rows(), state.cols());
+        print_json(state.rows());
         return app_control::ok;
     }
 
@@ -283,9 +284,9 @@ public:
         {
         case 'j':
         case KEY_DOWN:
-            if (_view_model_cur->next != _view_model.tail())
+            if (_view_model_cur->forward() != _view_model.tail())
             {
-                _view_model_cur = _view_model_cur->next;
+                _view_model_cur = _view_model_cur->forward();
                 print_json(state.rows());
             }
             else
@@ -348,12 +349,15 @@ static main_handler make_main_handler(const cli_options &opts)
 
 int main(int argc, char **argv)
 {
+    std::setlocale(LC_ALL, "");
+
     auto opts_or_ret = parse_cli(argc, argv);
     if (std::holds_alternative<int>(opts_or_ret))
     {
         return std::get<int>(opts_or_ret);
     }
     auto opts = std::move(std::get<cli_options>(opts_or_ret));
+
     main_app app(make_main_handler(opts));
     app.run();
     return 0;
