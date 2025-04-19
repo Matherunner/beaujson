@@ -258,7 +258,12 @@ private:
         }
     }
 
+    inline void scroll_to_top() { _view_model_cur = _view_model.head(); }
+
+    inline void scroll_to_bottom() { _view_model_cur = _view_model.tail()->backward(); }
+
     inline bool at_top() const { return _view_model_cur == _view_model.head(); }
+
     inline bool at_bottom() const { return _view_model_cur->forward() == _view_model.tail(); }
 
 public:
@@ -391,11 +396,11 @@ public:
             }
             break;
         case 'g':
-            _view_model_cur = _view_model.head();
+            scroll_to_top();
             print_json(state.rows());
             break;
         case 'G':
-            _view_model_cur = _view_model.tail()->backward();
+            scroll_to_bottom();
             print_json(state.rows());
             break;
         case 'q':
