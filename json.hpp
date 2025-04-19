@@ -4,6 +4,7 @@
 #include "simdjson.h"
 #include "util.hpp"
 #include <iostream>
+#include <map>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -42,12 +43,17 @@ namespace json
         std::string_view value;
     };
 
-    struct view_model_node
+    class view_model_node
     {
+    private:
+        std::map<int, view_model_node *> _backward_skips;
+        bool _collapsed = false;
+
+    public:
+        view_model_node *forward_skip = nullptr;
         view_model_node *next;
         view_model_node *prev;
-        view_model_node *skip = nullptr;
-        bool collapsed = false;
+
         view_entry entry;
 
         view_model_node() {}
@@ -56,9 +62,43 @@ namespace json
         DISABLE_COPY(view_model_node)
         DEFAULT_MOVE(view_model_node)
 
-        inline view_model_node *forward() const { return collapsed ? skip : next; }
-        // TODO: backward needs to work! Need another pointer!
-        // inline view_model_node *backward() const { }a
+        inline bool collapsed() const { return _collapsed; }
+        inline view_model_node *forward() const { return _collapsed ? forward_skip : next; }
+        inline view_model_node *backward() const
+        {
+            auto it = _backward_skips.cbegin();
+            if (it == _backward_skips.cend())
+            {
+                return prev;
+            }
+            return it->second;
+        }
+
+        void set_collapse()
+        {
+            if (_collapsed)
+            {
+                return;
+            }
+            _collapsed = true;
+            if (forward_skip)
+            {
+                forward_skip->_backward_skips.insert({entry.indent, this});
+            }
+        }
+
+        void set_expand()
+        {
+            if (!_collapsed)
+            {
+                return;
+            }
+            _collapsed = false;
+            if (forward_skip)
+            {
+                forward_skip->_backward_skips.erase(entry.indent);
+            }
+        }
     };
 
     class view_model
@@ -79,24 +119,44 @@ namespace json
             _dummy_tail.next = nullptr;
             _dummy_tail.prev = &_dummy_head;
         }
+
         ~view_model()
         {
-            // FIXME: the following causes crash! Might be because this is called when destroyed
-
-            // auto *cur = _head->next;
-            // while (cur != &_dummy_tail)
-            // {
-            //     auto *next = cur->next;
-            //     delete cur;
-            //     cur = next;
-            // }
+            // FIXME: the following might not be complete?
+            if (!_head)
+            {
+                return;
+            }
+            auto *cur = _head->next;
+            while (cur != _tail->prev)
+            {
+                auto *next = cur->next;
+                delete cur;
+                cur = next;
+            }
         }
+
+        view_model &operator=(view_model &&model)
+        {
+            std::swap(_parser, model._parser);
+            std::swap(_dummy_head, model._dummy_head);
+            std::swap(_dummy_tail, model._dummy_tail);
+            _head = &_dummy_head;
+            _tail = &_dummy_tail;
+            model._head = nullptr;
+            model._tail = nullptr;
+            _head->next->prev = _head;
+            _tail->prev->next = _tail;
+            return *this;
+        }
+
+        view_model(view_model &&model) { *this = std::move(model); }
+
         DISABLE_COPY(view_model)
-        DEFAULT_MOVE(view_model)
 
         inline simdjson::ondemand::parser &parser() { return _parser; }
         inline view_model_node *head() { return _head->next; }
-        inline view_model_node *tail() { return _tail->prev; }
+        inline view_model_node *tail() { return _tail; }
 
         void append(view_entry &&entry)
         {
@@ -122,18 +182,18 @@ namespace json
                     std::cout << cur->entry.key.value() << ": ";
                 }
                 std::cout << cur->entry.value;
-                if (cur->skip)
+                if (cur->forward_skip)
                 {
-                    std::cout << " (skip to " << cur->skip->entry.key.value_or("<no key>") << ")";
+                    std::cout << " (skip to " << cur->forward_skip->entry.key.value_or("<no key>") << ")";
                 }
-                if (cur->collapsed)
+                if (cur->collapsed())
                 {
-                    std::cout << " [COLAPPSED]";
+                    std::cout << " [COLLAPSED]";
                 }
                 std::cout << '\n';
-                if (cur->collapsed)
+                if (cur->collapsed())
                 {
-                    cur = cur->skip;
+                    cur = cur->forward_skip;
                 }
                 else
                 {

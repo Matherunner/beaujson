@@ -136,7 +136,7 @@ namespace json
         std::vector<view_model_node *> stack;
         auto *cur = model.head();
         int indent = 0;
-        while (cur)
+        while (cur != model.tail())
         {
             if (cur->entry.indent < indent)
             {
@@ -147,7 +147,7 @@ namespace json
                     {
                         break;
                     }
-                    top->skip = cur;
+                    top->forward_skip = cur;
                     stack.pop_back();
                 }
                 indent = cur->entry.indent;
@@ -164,9 +164,7 @@ namespace json
         }
         for (auto elem : stack)
         {
-            // FIXME: this creates problem if obj/arr is at the root: it has nothing to skip to even though it should be
-            // collapsible!
-            elem->skip = nullptr;
+            elem->forward_skip = model.tail();
         }
     }
 

@@ -190,9 +190,9 @@ private:
             // TODO: don't allocate strings here!
             auto key = p->entry.key.has_value() ? std::string(p->entry.key.value()) + ": " : "";
             auto value = std::string(p->entry.value);
-            auto state = json::is_collapsible(p->entry.kind) ? p->collapsed ? " [+]" : " [-]" : "";
+            auto state = json::is_collapsible(p->entry.kind) ? p->collapsed() ? " [+]" : " [-]" : "";
             mvprintw(i, 0, "%s%s%s%s", indent.c_str(), key.c_str(), value.c_str(), state);
-            p = p->collapsed ? p->skip : p->next;
+            p = p->collapsed() ? p->forward_skip : p->next;
         }
         attr_on(A_BOLD, nullptr);
         for (; i < rows; ++i)
@@ -249,11 +249,18 @@ public:
             int i = 0;
             for (; i < state.rows() && i < event.y() && p != _view_model.tail(); ++i)
             {
-                p = p->collapsed ? p->skip : p->next;
+                p = p->collapsed() ? p->forward_skip : p->next;
             }
             if (json::is_collapsible(p->entry.kind))
             {
-                p->collapsed = !p->collapsed;
+                if (p->collapsed())
+                {
+                    p->set_expand();
+                }
+                else
+                {
+                    p->set_collapse();
+                }
                 print_json(state.rows());
             }
         }
@@ -298,7 +305,7 @@ public:
         case KEY_UP:
             if (_view_model_cur != _view_model.head())
             {
-                _view_model_cur = _view_model_cur->prev;
+                _view_model_cur = _view_model_cur->backward();
                 print_json(state.rows());
             }
             else
@@ -321,7 +328,18 @@ public:
             }
             break;
         case 'b':
-            // TODO: move back 1 page
+            if (_view_model_cur != _view_model.head())
+            {
+                for (int i = 0; i < state.rows() && _view_model_cur != _view_model.head(); ++i)
+                {
+                    _view_model_cur = _view_model_cur->backward();
+                }
+                print_json(state.rows());
+            }
+            else
+            {
+                beep();
+            }
             break;
         case 'q':
             return app_control::stop;
