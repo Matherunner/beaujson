@@ -148,8 +148,8 @@ namespace json
         DISABLE_COPY(view_model)
 
         inline simdjson::ondemand::parser &parser() { return _parser; }
-        inline view_model_node *head() { return _dummy_head->next; }
-        inline view_model_node *tail() { return _dummy_tail.get(); }
+        inline view_model_node *head() const { return _dummy_head->next; }
+        inline view_model_node *tail() const { return _dummy_tail.get(); }
 
         void append(view_entry &&entry)
         {

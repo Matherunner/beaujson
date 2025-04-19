@@ -242,6 +242,25 @@ private:
         return json::load(_content);
     }
 
+    void scroll_forward(int n)
+    {
+        for (int i = 0; i < n && _view_model_cur->forward() != _view_model.tail(); ++i)
+        {
+            _view_model_cur = _view_model_cur->forward();
+        }
+    }
+
+    void scroll_backward(int n)
+    {
+        for (int i = 0; i < n && _view_model_cur != _view_model.head(); ++i)
+        {
+            _view_model_cur = _view_model_cur->backward();
+        }
+    }
+
+    inline bool at_top() const { return _view_model_cur == _view_model.head(); }
+    inline bool at_bottom() const { return _view_model_cur->forward() == _view_model.tail(); }
+
 public:
     main_handler() : _view_model(load_view_model_from_clipboard()) {}
     main_handler(const std::string &file_path) : _view_model(load_view_model_from_file(file_path)) {}
@@ -305,54 +324,70 @@ public:
         {
         case 'j':
         case KEY_DOWN:
-            if (_view_model_cur->forward() != _view_model.tail())
+            if (at_bottom())
             {
-                _view_model_cur = _view_model_cur->forward();
-                print_json(state.rows());
+                beep();
             }
             else
             {
-                beep();
+                scroll_forward(1);
+                print_json(state.rows());
             }
             break;
         case 'k':
         case KEY_UP:
-            if (_view_model_cur != _view_model.head())
+            if (at_top())
             {
-                _view_model_cur = _view_model_cur->backward();
-                print_json(state.rows());
+                beep();
             }
             else
             {
-                beep();
+                scroll_backward(1);
+                print_json(state.rows());
             }
             break;
         case 'f':
-            if (_view_model_cur->forward() != _view_model.tail())
+            if (at_bottom())
             {
-                for (int i = 0; i < state.rows() && _view_model_cur->forward() != _view_model.tail(); ++i)
-                {
-                    _view_model_cur = _view_model_cur->forward();
-                }
-                print_json(state.rows());
+                beep();
             }
             else
             {
-                beep();
+                scroll_forward(state.rows());
+                print_json(state.rows());
             }
             break;
         case 'b':
-            if (_view_model_cur != _view_model.head())
+            if (at_top())
             {
-                for (int i = 0; i < state.rows() && _view_model_cur != _view_model.head(); ++i)
-                {
-                    _view_model_cur = _view_model_cur->backward();
-                }
-                print_json(state.rows());
+                beep();
             }
             else
             {
+                scroll_backward(state.rows());
+                print_json(state.rows());
+            }
+            break;
+        case 'd':
+            if (at_bottom())
+            {
                 beep();
+            }
+            else
+            {
+                scroll_forward(state.rows() / 2);
+                print_json(state.rows());
+            }
+            break;
+        case 'u':
+            if (at_top())
+            {
+                beep();
+            }
+            else
+            {
+                scroll_backward(state.rows() / 2);
+                print_json(state.rows());
             }
             break;
         case 'g':
