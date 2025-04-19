@@ -162,7 +162,7 @@ namespace json
             }
             cur = cur->next;
         }
-        for (auto elem : stack)
+        for (auto *elem : stack)
         {
             elem->forward_skip = model.tail();
         }

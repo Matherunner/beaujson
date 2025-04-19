@@ -50,11 +50,10 @@ namespace json
         bool _collapsed = false;
 
     public:
+        view_entry entry;
         view_model_node *forward_skip = nullptr;
         view_model_node *next;
         view_model_node *prev;
-
-        view_entry entry;
 
         view_model_node() {}
         view_model_node(view_entry &&e) : entry(std::move(e)) {}
@@ -105,30 +104,30 @@ namespace json
     {
     private:
         simdjson::ondemand::parser _parser;
-        view_model_node _dummy_head;
-        view_model_node _dummy_tail;
-        view_model_node *_head;
-        view_model_node *_tail;
+        std::unique_ptr<view_model_node> _dummy_head;
+        std::unique_ptr<view_model_node> _dummy_tail;
 
     public:
         view_model(simdjson::ondemand::parser &&parser)
-            : _head(&_dummy_head), _tail(&_dummy_tail), _parser(std::move(parser))
+            : _parser(std::move(parser)), _dummy_head(std::make_unique<view_model_node>(view_model_node())),
+              _dummy_tail(std::make_unique<view_model_node>(view_model_node()))
         {
-            _dummy_head.next = &_dummy_tail;
-            _dummy_head.prev = nullptr;
-            _dummy_tail.next = nullptr;
-            _dummy_tail.prev = &_dummy_head;
+            _dummy_head->next = _dummy_tail.get();
+            _dummy_head->prev = nullptr;
+            _dummy_head->entry.key = "[HEAD]";
+            _dummy_tail->next = nullptr;
+            _dummy_tail->prev = _dummy_head.get();
+            _dummy_tail->entry.key = "[TAIL]";
         }
 
         ~view_model()
         {
-            // FIXME: the following might not be complete?
-            if (!_head)
+            if (!_dummy_head)
             {
                 return;
             }
-            auto *cur = _head->next;
-            while (cur != _tail->prev)
+            auto *cur = _dummy_head->next;
+            while (cur != _dummy_tail.get())
             {
                 auto *next = cur->next;
                 delete cur;
@@ -141,12 +140,6 @@ namespace json
             std::swap(_parser, model._parser);
             std::swap(_dummy_head, model._dummy_head);
             std::swap(_dummy_tail, model._dummy_tail);
-            _head = &_dummy_head;
-            _tail = &_dummy_tail;
-            model._head = nullptr;
-            model._tail = nullptr;
-            _head->next->prev = _head;
-            _tail->prev->next = _tail;
             return *this;
         }
 
@@ -155,22 +148,22 @@ namespace json
         DISABLE_COPY(view_model)
 
         inline simdjson::ondemand::parser &parser() { return _parser; }
-        inline view_model_node *head() { return _head->next; }
-        inline view_model_node *tail() { return _tail; }
+        inline view_model_node *head() { return _dummy_head->next; }
+        inline view_model_node *tail() { return _dummy_tail.get(); }
 
         void append(view_entry &&entry)
         {
             auto *node = new view_model_node(std::move(entry));
-            node->prev = _tail->prev;
-            node->next = _tail;
-            _tail->prev->next = node;
-            _tail->prev = node;
+            node->prev = _dummy_tail->prev;
+            node->next = _dummy_tail.get();
+            _dummy_tail->prev->next = node;
+            _dummy_tail->prev = node;
         }
 
         void debug_print()
         {
-            auto *cur = _head->next;
-            while (cur != &_dummy_tail)
+            auto *cur = _dummy_head->next;
+            while (cur != _dummy_tail.get())
             {
                 std::cout << "LINE: ";
                 for (int i = 0; i < cur->entry.indent; ++i)
