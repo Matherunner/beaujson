@@ -170,6 +170,7 @@ public:
 class main_handler
 {
 private:
+    std::string _print_buffer;
     std::vector<char> _content;
     json::view_model _view_model;
     json::view_model_node *_view_model_cur;
@@ -182,16 +183,29 @@ private:
         int i = 0;
         for (; i < rows && p != _view_model.tail(); ++i)
         {
-            std::string indent;
+            _print_buffer.clear();
             for (int j = 0; j < p->entry.indent; ++j)
             {
-                indent += ' ';
+                _print_buffer.push_back(' ');
             }
-            // TODO: don't allocate strings here!
-            auto key = p->entry.key.has_value() ? std::string(p->entry.key.value()) + ": " : "";
-            auto value = std::string(p->entry.value);
-            auto state = json::is_collapsible(p->entry.kind) ? p->collapsed() ? " [+]" : " [-]" : "";
-            mvprintw(i, 0, "%s%s%s%s", indent.c_str(), key.c_str(), value.c_str(), state);
+            if (p->entry.key.has_value())
+            {
+                _print_buffer += p->entry.key.value();
+                _print_buffer += ": ";
+            }
+            _print_buffer += p->entry.value;
+            if (json::is_collapsible(p->entry.kind))
+            {
+                if (p->collapsed())
+                {
+                    _print_buffer += " [+]";
+                }
+                else
+                {
+                    _print_buffer += " [-]";
+                }
+            }
+            mvaddstr(i, 0, _print_buffer.c_str());
             p = p->forward();
         }
         attr_on(A_BOLD, nullptr);
