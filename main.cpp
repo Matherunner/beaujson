@@ -12,10 +12,6 @@
 #include "simdjson.h"
 #include "vendor/CLI11/CLI11.hpp"
 
-class entry_metadata
-{
-};
-
 class mouse_event
 {
 private:
@@ -176,19 +172,16 @@ class main_handler
 private:
     std::string _print_buffer;
     std::vector<char> _content;
-    json::view_model<entry_metadata> _view_model;
-    json::view_model_node<entry_metadata> *_view_model_cur;
+    json::view_model _view_model;
+    json::view_model_node *_view_model_cur;
     int _row_highlight = -1;
 
-    void draw_screen(int rows)
+    void print_json(int rows)
     {
         erase();
-
-        // Print JSON content
-
         auto *p = _view_model_cur;
         int i = 0;
-        for (; i < rows - 1 && p != _view_model.tail(); ++i)
+        for (; i < rows && p != _view_model.tail(); ++i)
         {
             _print_buffer.clear();
             for (int j = 0; j < p->entry.indent; ++j)
@@ -215,38 +208,25 @@ private:
             mvaddstr(i, 0, _print_buffer.c_str());
             p = p->forward();
         }
-
-        // Print ~ lines
-
         attr_on(A_BOLD, nullptr);
-        for (; i < rows - 1; ++i)
+        for (; i < rows; ++i)
         {
             mvaddstr(i, 0, "~");
         }
         attr_off(A_BOLD, nullptr);
-
-        // Print mouse highlight
-
         if (_row_highlight >= 0)
         {
             mvchgat(_row_highlight, 0, -1, A_STANDOUT, 0, nullptr);
         }
-
-        // Print status bar
-
-        _print_buffer.clear();
-        std::format_to(std::back_inserter(_print_buffer), "{}/{}", 123, 456);
-        mvaddstr(rows - 1, 0, _print_buffer.c_str());
-        mvchgat(rows - 1, 0, -1, A_STANDOUT, 0, nullptr);
     }
 
-    json::view_model<entry_metadata> load_view_model_from_clipboard()
+    json::view_model load_view_model_from_clipboard()
     {
         clipboard::get_clipboard_text(_content, simdjson::SIMDJSON_PADDING);
-        return json::load<entry_metadata>(_content);
+        return json::load(_content);
     }
 
-    json::view_model<entry_metadata> load_view_model_from_file(const std::string &file_path)
+    json::view_model load_view_model_from_file(const std::string &file_path)
     {
         auto file_size = std::filesystem::file_size(file_path);
         _content.reserve(file_size + simdjson::SIMDJSON_PADDING);
@@ -259,7 +239,7 @@ private:
                 throw std::runtime_error("unable to read file");
             }
         }
-        return json::load<entry_metadata>(_content);
+        return json::load(_content);
     }
 
     void scroll_forward(int n)
@@ -295,7 +275,7 @@ public:
     app_control start(const app_state &state)
     {
         _view_model_cur = _view_model.head();
-        draw_screen(state.rows());
+        print_json(state.rows());
         return app_control::ok;
     }
 
@@ -319,7 +299,7 @@ public:
                 {
                     p->set_collapse();
                 }
-                draw_screen(state.rows());
+                print_json(state.rows());
             }
         }
         if (event.move())
@@ -339,7 +319,7 @@ public:
 
     app_control resize(const app_state &state)
     {
-        draw_screen(state.rows());
+        print_json(state.rows());
         return app_control::ok;
     }
 
@@ -356,7 +336,7 @@ public:
             else
             {
                 scroll_forward(1);
-                draw_screen(state.rows());
+                print_json(state.rows());
             }
             break;
         case 'k':
@@ -368,7 +348,7 @@ public:
             else
             {
                 scroll_backward(1);
-                draw_screen(state.rows());
+                print_json(state.rows());
             }
             break;
         case 'f':
@@ -379,7 +359,7 @@ public:
             else
             {
                 scroll_forward(state.rows());
-                draw_screen(state.rows());
+                print_json(state.rows());
             }
             break;
         case 'b':
@@ -390,7 +370,7 @@ public:
             else
             {
                 scroll_backward(state.rows());
-                draw_screen(state.rows());
+                print_json(state.rows());
             }
             break;
         case 'd':
@@ -401,7 +381,7 @@ public:
             else
             {
                 scroll_forward(state.rows() / 2);
-                draw_screen(state.rows());
+                print_json(state.rows());
             }
             break;
         case 'u':
@@ -412,16 +392,16 @@ public:
             else
             {
                 scroll_backward(state.rows() / 2);
-                draw_screen(state.rows());
+                print_json(state.rows());
             }
             break;
         case 'g':
             scroll_to_top();
-            draw_screen(state.rows());
+            print_json(state.rows());
             break;
         case 'G':
             scroll_to_bottom();
-            draw_screen(state.rows());
+            print_json(state.rows());
             break;
         case 'q':
             return app_control::stop;

@@ -9,11 +9,6 @@
 #include <string_view>
 #include <vector>
 
-namespace
-{
-    namespace sjo = simdjson::ondemand;
-}
-
 namespace json
 {
     enum class view_entry_kind : int
@@ -48,11 +43,9 @@ namespace json
         std::string_view value;
     };
 
-    template <typename M>
     class view_model_node
     {
     private:
-        M _metadata;
         std::map<int, view_model_node *> _backward_skips;
         bool _collapsed = false;
 
@@ -107,20 +100,17 @@ namespace json
         }
     };
 
-    template <typename M>
     class view_model
     {
     private:
-        using node_type = view_model_node<M>;
-
         simdjson::ondemand::parser _parser;
-        std::unique_ptr<node_type> _dummy_head;
-        std::unique_ptr<node_type> _dummy_tail;
+        std::unique_ptr<view_model_node> _dummy_head;
+        std::unique_ptr<view_model_node> _dummy_tail;
 
     public:
         view_model(simdjson::ondemand::parser &&parser)
-            : _parser(std::move(parser)), _dummy_head(std::make_unique<node_type>(node_type())),
-              _dummy_tail(std::make_unique<node_type>(node_type()))
+            : _parser(std::move(parser)), _dummy_head(std::make_unique<view_model_node>(view_model_node())),
+              _dummy_tail(std::make_unique<view_model_node>(view_model_node()))
         {
             _dummy_head->next = _dummy_tail.get();
             _dummy_head->prev = nullptr;
@@ -158,12 +148,12 @@ namespace json
         DISABLE_COPY(view_model)
 
         inline simdjson::ondemand::parser &parser() { return _parser; }
-        inline node_type *head() const { return _dummy_head->next; }
-        inline node_type *tail() const { return _dummy_tail.get(); }
+        inline view_model_node *head() const { return _dummy_head->next; }
+        inline view_model_node *tail() const { return _dummy_tail.get(); }
 
         void append(view_entry &&entry)
         {
-            auto *node = new node_type(std::move(entry));
+            auto *node = new view_model_node(std::move(entry));
             node->prev = _dummy_tail->prev;
             node->next = _dummy_tail.get();
             _dummy_tail->prev->next = node;
@@ -205,104 +195,6 @@ namespace json
             }
         }
     };
-}
 
-namespace
-{
-    template <typename M>
-    void doc_to_view_model(json::view_model<M> &model, sjo::value doc, std::optional<std::string_view> key, int level)
-    {
-        switch (doc.type())
-        {
-        case sjo::json_type::object:
-            model.append(json::view_entry(level, json::view_entry_kind::object_open, key, "{"));
-            for (auto elem : doc.get_object())
-            {
-                doc_to_view_model(model, elem.value(), elem.unescaped_key(), level + 1);
-            }
-            break;
-        case sjo::json_type::array:
-            model.append(json::view_entry(level, json::view_entry_kind::array_open, key, "["));
-            for (auto elem : doc.get_array())
-            {
-                doc_to_view_model(model, elem.value(), std::nullopt, level + 1);
-            }
-            break;
-        case sjo::json_type::boolean:
-            model.append(
-                json::view_entry(level, json::view_entry_kind::boolean, key, util::trim_space(doc.raw_json_token())));
-            break;
-        case sjo::json_type::number:
-            model.append(
-                json::view_entry(level, json::view_entry_kind::number, key, util::trim_space(doc.raw_json_token())));
-            break;
-        case sjo::json_type::string:
-            model.append(
-                json::view_entry(level, json::view_entry_kind::string, key, util::trim_space(doc.raw_json_token())));
-            break;
-        case sjo::json_type::null:
-            model.append(
-                json::view_entry(level, json::view_entry_kind::null, key, util::trim_space(doc.raw_json_token())));
-            break;
-        default:
-            throw std::logic_error("unknown doc type");
-        }
-    }
-
-    template <typename M>
-    inline void doc_to_view_model(json::view_model<M> &model, sjo::document doc)
-    {
-        doc_to_view_model(model, doc, std::nullopt, 0);
-    }
-
-    template <typename M>
-    void add_skips(json::view_model<M> &model)
-    {
-        std::vector<json::view_model_node<M> *> stack;
-        auto *cur = model.head();
-        int indent = 0;
-        while (cur != model.tail())
-        {
-            if (cur->entry.indent < indent)
-            {
-                while (!stack.empty())
-                {
-                    auto top = stack.back();
-                    if (top->entry.indent < cur->entry.indent)
-                    {
-                        break;
-                    }
-                    top->forward_skip = cur;
-                    stack.pop_back();
-                }
-                indent = cur->entry.indent;
-            }
-            switch (cur->entry.kind)
-            {
-            case json::view_entry_kind::object_open:
-            case json::view_entry_kind::array_open:
-                stack.emplace_back(cur);
-                ++indent;
-                break;
-            }
-            cur = cur->next;
-        }
-        for (auto *elem : stack)
-        {
-            elem->forward_skip = model.tail();
-        }
-    }
-}
-
-namespace json
-{
-    template <typename M>
-    view_model<M> load(const std::vector<char> &content)
-    {
-        view_model<M> model(sjo::parser{});
-        simdjson::ondemand::document doc = model.parser().iterate(content.data(), content.size(), content.capacity());
-        doc_to_view_model(model, std::move(doc));
-        add_skips(model);
-        return model;
-    }
+    view_model load(const std::vector<char> &content);
 }
