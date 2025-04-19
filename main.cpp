@@ -359,6 +359,10 @@ public:
             _view_model_cur = _view_model.head();
             print_json(state.rows());
             break;
+        case 'G':
+            _view_model_cur = _view_model.tail()->backward();
+            print_json(state.rows());
+            break;
         case 'q':
             return app_control::stop;
         }
