@@ -341,6 +341,10 @@ public:
                 beep();
             }
             break;
+        case 'g':
+            _view_model_cur = _view_model.head();
+            print_json(state.rows());
+            break;
         case 'q':
             return app_control::stop;
         }
