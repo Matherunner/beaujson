@@ -192,7 +192,7 @@ private:
             auto value = std::string(p->entry.value);
             auto state = json::is_collapsible(p->entry.kind) ? p->collapsed() ? " [+]" : " [-]" : "";
             mvprintw(i, 0, "%s%s%s%s", indent.c_str(), key.c_str(), value.c_str(), state);
-            p = p->collapsed() ? p->forward_skip : p->next;
+            p = p->forward();
         }
         attr_on(A_BOLD, nullptr);
         for (; i < rows; ++i)
@@ -249,7 +249,7 @@ public:
             int i = 0;
             for (; i < state.rows() && i < event.y() && p != _view_model.tail(); ++i)
             {
-                p = p->collapsed() ? p->forward_skip : p->next;
+                p = p->forward();
             }
             if (json::is_collapsible(p->entry.kind))
             {
