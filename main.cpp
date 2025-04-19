@@ -306,6 +306,23 @@ public:
                 beep();
             }
             break;
+        case 'f':
+            if (_view_model_cur->forward() != _view_model.tail())
+            {
+                for (int i = 0; i < state.rows() && _view_model_cur->forward() != _view_model.tail(); ++i)
+                {
+                    _view_model_cur = _view_model_cur->forward();
+                }
+                print_json(state.rows());
+            }
+            else
+            {
+                beep();
+            }
+            break;
+        case 'b':
+            // TODO: move back 1 page
+            break;
         case 'q':
             return app_control::stop;
         }
