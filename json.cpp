@@ -1,9 +1,6 @@
 #include "json.hpp"
 
 #include "simdjson.h"
-#include <stdexcept>
-
-namespace sjo = simdjson::ondemand;
 
 // The following doesn't work!
 
@@ -91,89 +88,4 @@ namespace sjo = simdjson::ondemand;
 
 namespace json
 {
-    static void doc_to_view_model(view_model &model, sjo::value doc, std::optional<std::string_view> key, int level)
-    {
-        switch (doc.type())
-        {
-        case sjo::json_type::object:
-            model.append(view_entry(level, view_entry_kind::object_open, key, "{"));
-            for (auto elem : doc.get_object())
-            {
-                doc_to_view_model(model, elem.value(), elem.unescaped_key(), level + 1);
-            }
-            break;
-        case sjo::json_type::array:
-            model.append(view_entry(level, view_entry_kind::array_open, key, "["));
-            for (auto elem : doc.get_array())
-            {
-                doc_to_view_model(model, elem.value(), std::nullopt, level + 1);
-            }
-            break;
-        case sjo::json_type::boolean:
-            model.append(view_entry(level, view_entry_kind::boolean, key, util::trim_space(doc.raw_json_token())));
-            break;
-        case sjo::json_type::number:
-            model.append(view_entry(level, view_entry_kind::number, key, util::trim_space(doc.raw_json_token())));
-            break;
-        case sjo::json_type::string:
-            model.append(view_entry(level, view_entry_kind::string, key, util::trim_space(doc.raw_json_token())));
-            break;
-        case sjo::json_type::null:
-            model.append(view_entry(level, view_entry_kind::null, key, util::trim_space(doc.raw_json_token())));
-            break;
-        default:
-            throw std::logic_error("unknown doc type");
-        }
-    }
-
-    static void doc_to_view_model(view_model &model, sjo::document doc)
-    {
-        doc_to_view_model(model, doc, std::nullopt, 0);
-    }
-
-    static void add_skips(view_model &model)
-    {
-        std::vector<view_model_node *> stack;
-        auto *cur = model.head();
-        int indent = 0;
-        while (cur != model.tail())
-        {
-            if (cur->entry.indent < indent)
-            {
-                while (!stack.empty())
-                {
-                    auto top = stack.back();
-                    if (top->entry.indent < cur->entry.indent)
-                    {
-                        break;
-                    }
-                    top->forward_skip = cur;
-                    stack.pop_back();
-                }
-                indent = cur->entry.indent;
-            }
-            switch (cur->entry.kind)
-            {
-            case view_entry_kind::object_open:
-            case view_entry_kind::array_open:
-                stack.emplace_back(cur);
-                ++indent;
-                break;
-            }
-            cur = cur->next;
-        }
-        for (auto *elem : stack)
-        {
-            elem->forward_skip = model.tail();
-        }
-    }
-
-    view_model load(const std::vector<char> &content)
-    {
-        view_model model(sjo::parser{});
-        sjo::document doc = model.parser().iterate(content.data(), content.size(), content.capacity());
-        doc_to_view_model(model, std::move(doc));
-        add_skips(model);
-        return model;
-    }
 }
