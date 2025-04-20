@@ -32,3 +32,5 @@ TEST_CASE("Factorials are computed", "[factorial]")
     // cur->collapsed = true;
     // view_model.debug_print();
 }
+
+TEST_CASE("view_entry size", "[view_entry]") { REQUIRE(sizeof(json::view_entry) == 56); }

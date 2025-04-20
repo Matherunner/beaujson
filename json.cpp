@@ -91,16 +91,16 @@ namespace sjo = simdjson::ondemand;
 
 namespace json
 {
-    static void doc_to_view_model(view_model &model, sjo::value doc, std::optional<std::string_view> key, int level)
+    static void doc_to_view_model(view_model &model, sjo::value doc, std::optional<std::string_view> key, size_t level)
     {
         switch (doc.type())
         {
         case sjo::json_type::object:
             model.append(view_entry{
-                .kind = view_entry_kind::object_open,
-                .value = "{",
                 .key = key,
+                .value = "{",
                 .indent = level,
+                .kind = view_entry_kind::object_open,
             });
             for (auto elem : doc.get_object())
             {
@@ -109,10 +109,10 @@ namespace json
             break;
         case sjo::json_type::array:
             model.append(view_entry{
-                .kind = view_entry_kind::array_open,
-                .value = "[",
                 .key = key,
+                .value = "[",
                 .indent = level,
+                .kind = view_entry_kind::array_open,
             });
             for (auto elem : doc.get_array())
             {
@@ -121,34 +121,34 @@ namespace json
             break;
         case sjo::json_type::boolean:
             model.append(view_entry{
-                .kind = view_entry_kind::boolean,
-                .value = util::trim_space(doc.raw_json_token()),
                 .key = key,
+                .value = util::trim_space(doc.raw_json_token()),
                 .indent = level,
+                .kind = view_entry_kind::boolean,
             });
             break;
         case sjo::json_type::number:
             model.append(view_entry{
-                .kind = view_entry_kind::number,
-                .value = util::trim_space(doc.raw_json_token()),
                 .key = key,
+                .value = util::trim_space(doc.raw_json_token()),
                 .indent = level,
+                .kind = view_entry_kind::number,
             });
             break;
         case sjo::json_type::string:
             model.append(view_entry{
-                .kind = view_entry_kind::string,
-                .value = util::trim_space(doc.raw_json_token()),
                 .key = key,
+                .value = util::trim_space(doc.raw_json_token()),
                 .indent = level,
+                .kind = view_entry_kind::string,
             });
             break;
         case sjo::json_type::null:
             model.append(view_entry{
-                .kind = view_entry_kind::null,
-                .value = util::trim_space(doc.raw_json_token()),
                 .key = key,
+                .value = util::trim_space(doc.raw_json_token()),
                 .indent = level,
+                .kind = view_entry_kind::null,
             });
             break;
         default:

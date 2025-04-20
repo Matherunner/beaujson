@@ -27,12 +27,11 @@ namespace json
 
     struct view_entry
     {
-        view_entry_kind kind;
-        std::string_view value;
         std::optional<std::string_view> key;
+        std::string_view value;
         size_t model_line_no;
-        int indent;
-        util::noncopyable _ = {};
+        size_t indent;
+        view_entry_kind kind;
     };
 
     class view_model_node
