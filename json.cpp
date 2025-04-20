@@ -126,7 +126,7 @@ namespace json
         }
     }
 
-    static void doc_to_view_model(view_model &model, sjo::document doc)
+    static inline void doc_to_view_model(view_model &model, sjo::document doc)
     {
         doc_to_view_model(model, doc, std::nullopt, 0);
     }
