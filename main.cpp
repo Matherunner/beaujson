@@ -169,6 +169,7 @@ public:
 class main_handler
 {
 private:
+    std::string _file_name;
     std::string _print_buffer;
     std::vector<char> _content;
     json::view_model _view_model;
@@ -235,19 +236,21 @@ private:
             *it++ = '?';
             *it++ = '?';
         }
-        it = std::format_to(it, "/{}", _view_model.tail()->prev->entry.model_line_num);
+        it = std::format_to(it, "/{} - {}", _view_model.tail()->prev->entry.model_line_num, _file_name);
         mvaddstr(rows - 1, 0, _print_buffer.c_str());
         mvchgat(rows - 1, 0, -1, A_STANDOUT, 0, nullptr);
     }
 
     json::view_model load_view_model_from_clipboard()
     {
+        _file_name = "<CLIPBOARD>";
         clipboard::get_clipboard_text(_content, simdjson::SIMDJSON_PADDING);
         return json::load(_content);
     }
 
     json::view_model load_view_model_from_file(const std::string &file_path)
     {
+        _file_name = std::filesystem::path(file_path).filename();
         auto file_size = std::filesystem::file_size(file_path);
         _content.reserve(file_size + simdjson::SIMDJSON_PADDING);
         _content.resize(file_size);
