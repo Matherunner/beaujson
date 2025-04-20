@@ -7,7 +7,6 @@
 #include <ncurses.h>
 
 #include "clipboard.hpp"
-#include "common.hpp"
 #include "json.hpp"
 #include "simdjson.h"
 #include "vendor/CLI11/CLI11.hpp"
@@ -329,6 +328,7 @@ public:
         {
         case 'j':
         case KEY_DOWN:
+        case '\n':
             if (at_bottom())
             {
                 beep();
@@ -352,6 +352,7 @@ public:
             }
             break;
         case 'f':
+        case ' ':
             if (at_bottom())
             {
                 beep();
