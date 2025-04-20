@@ -27,15 +27,6 @@ namespace json
 
     struct view_entry
     {
-        // view_entry() {}
-        // view_entry(int indent, view_entry_kind kind, std::optional<std::string_view> key, std::string_view value)
-        //     : indent(indent), kind(kind), key(key), value(value)
-        // {
-        // }
-        // ~view_entry() = default;
-        // DISABLE_COPY(view_entry)
-        // DEFAULT_MOVE(view_entry)
-
         view_entry_kind kind;
         std::string_view value;
         std::optional<std::string_view> key;
