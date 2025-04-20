@@ -120,7 +120,7 @@ namespace json
 
         void set_collapse()
         {
-            if (_collapsed)
+            if (_collapsed || !entry.flags.collapsible())
             {
                 return;
             }

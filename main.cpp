@@ -350,6 +350,30 @@ public:
     {
         switch (ch)
         {
+        case '-':
+        {
+            // Collapse all
+            auto *p = _view_model.head();
+            while (p != _view_model.tail())
+            {
+                p->set_collapse();
+                p = p->next;
+            }
+            print_json(state.rows());
+            break;
+        }
+        case '+':
+        {
+            // Expand all
+            auto *p = _view_model.head();
+            while (p != _view_model.tail())
+            {
+                p->set_expand();
+                p = p->next;
+            }
+            print_json(state.rows());
+            break;
+        }
         case 'j':
         case KEY_DOWN:
         case '\n':
