@@ -187,13 +187,13 @@ private:
             {
                 _print_buffer.push_back(' ');
             }
-            if (p->entry.key.has_value())
+            if (p->entry.flags.has_key())
             {
-                _print_buffer += p->entry.key.value();
+                _print_buffer += p->entry.key;
                 _print_buffer += ": ";
             }
             _print_buffer += p->entry.value;
-            if (json::is_collapsible(p->entry.kind))
+            if (p->entry.flags.collapsible())
             {
                 if (p->collapsed())
                 {
@@ -288,7 +288,7 @@ public:
             {
                 p = p->forward();
             }
-            if (json::is_collapsible(p->entry.kind))
+            if (p->entry.flags.collapsible())
             {
                 if (p->collapsed())
                 {

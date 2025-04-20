@@ -10,6 +10,17 @@
 
 namespace json
 {
+    namespace entry_flag
+    {
+        constexpr uint32_t OBJECT_OPEN_KIND = 1 << 0;
+        constexpr uint32_t ARRAY_OPEN_KIND = 1 << 1;
+        constexpr uint32_t STRING_KIND = 1 << 2;
+        constexpr uint32_t NUMBER_KIND = 1 << 3;
+        constexpr uint32_t BOOLEAN_KIND = 1 << 4;
+        constexpr uint32_t NULL_KIND = 1 << 5;
+        constexpr uint32_t HAS_KEY = 1 << 6;
+    }
+
     enum class view_entry_kind : int
     {
         object_open,
@@ -20,18 +31,62 @@ namespace json
         null,
     };
 
-    constexpr inline bool is_collapsible(view_entry_kind kind)
+    constexpr uint32_t entry_kind_to_bits(view_entry_kind kind)
     {
-        return kind == view_entry_kind::object_open || kind == view_entry_kind::array_open;
+        switch (kind)
+        {
+        case view_entry_kind::object_open:
+            return entry_flag::OBJECT_OPEN_KIND;
+        case view_entry_kind::array_open:
+            return entry_flag::ARRAY_OPEN_KIND;
+        case view_entry_kind::string:
+            return entry_flag::STRING_KIND;
+        case view_entry_kind::number:
+            return entry_flag::NUMBER_KIND;
+        case view_entry_kind::boolean:
+            return entry_flag::BOOLEAN_KIND;
+        case view_entry_kind::null:
+            return entry_flag::NULL_KIND;
+        default:
+            throw std::logic_error("unknown view entry kind");
+        }
     }
 
     struct view_entry
     {
-        std::optional<std::string_view> key;
+        class flags_t
+        {
+        private:
+            uint32_t _b;
+
+        public:
+            flags_t() : _b(0) {}
+            flags_t(uint32_t b) : _b(b) {}
+
+            inline uint32_t bits() const { return _b; }
+            inline void set_bits(uint32_t b) { _b = b; }
+
+            inline bool collapsible() const
+            {
+                return _b & (entry_flag::OBJECT_OPEN_KIND | entry_flag::ARRAY_OPEN_KIND);
+            }
+
+            inline bool has_key() const { return _b & entry_flag::HAS_KEY; }
+        };
+
+        view_entry() {}
+        view_entry(std::string_view key, std::string_view value, size_t indent, view_entry_kind kind, bool has_key)
+            : key(key), value(value), indent(indent),
+              flags(flags_t(entry_kind_to_bits(kind) | (entry_flag::HAS_KEY & -has_key)))
+        {
+        }
+        DEFAULT_MOVE(view_entry)
+
+        std::string_view key;
         std::string_view value;
-        size_t model_line_no;
         size_t indent;
-        view_entry_kind kind;
+        size_t model_line_no;
+        flags_t flags;
     };
 
     class view_model_node
@@ -46,9 +101,8 @@ namespace json
         view_model_node *next;
         view_model_node *prev;
 
-        view_model_node() {}
+        view_model_node() {};
         view_model_node(view_entry &&e) : entry(std::move(e)) {}
-        ~view_model_node() = default;
         DISABLE_COPY(view_model_node)
         DEFAULT_MOVE(view_model_node)
 
@@ -161,14 +215,14 @@ namespace json
                 {
                     std::cout << "  ";
                 }
-                if (cur->entry.key.has_value())
+                if (cur->entry.flags.has_key())
                 {
-                    std::cout << cur->entry.key.value() << ": ";
+                    std::cout << cur->entry.key << ": ";
                 }
                 std::cout << cur->entry.value;
                 if (cur->forward_skip)
                 {
-                    std::cout << " (skip to " << cur->forward_skip->entry.key.value_or("<no key>") << ")";
+                    std::cout << " (skip to " << cur->forward_skip->entry.key << ")";
                 }
                 if (cur->collapsed())
                 {

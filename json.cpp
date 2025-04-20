@@ -96,60 +96,34 @@ namespace json
         switch (doc.type())
         {
         case sjo::json_type::object:
-            model.append(view_entry{
-                .key = key,
-                .value = "{",
-                .indent = level,
-                .kind = view_entry_kind::object_open,
-            });
+            model.append(view_entry(key.value_or(""), "{", level, view_entry_kind::object_open, key.has_value()));
             for (auto elem : doc.get_object())
             {
                 doc_to_view_model(model, elem.value(), elem.unescaped_key(), level + 1);
             }
             break;
         case sjo::json_type::array:
-            model.append(view_entry{
-                .key = key,
-                .value = "[",
-                .indent = level,
-                .kind = view_entry_kind::array_open,
-            });
+            model.append(view_entry(key.value_or(""), "[", level, view_entry_kind::array_open, key.has_value()));
             for (auto elem : doc.get_array())
             {
                 doc_to_view_model(model, elem.value(), std::nullopt, level + 1);
             }
             break;
         case sjo::json_type::boolean:
-            model.append(view_entry{
-                .key = key,
-                .value = util::trim_space(doc.raw_json_token()),
-                .indent = level,
-                .kind = view_entry_kind::boolean,
-            });
+            model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
+                                    view_entry_kind::boolean, key.has_value()));
             break;
         case sjo::json_type::number:
-            model.append(view_entry{
-                .key = key,
-                .value = util::trim_space(doc.raw_json_token()),
-                .indent = level,
-                .kind = view_entry_kind::number,
-            });
+            model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
+                                    view_entry_kind::number, key.has_value()));
             break;
         case sjo::json_type::string:
-            model.append(view_entry{
-                .key = key,
-                .value = util::trim_space(doc.raw_json_token()),
-                .indent = level,
-                .kind = view_entry_kind::string,
-            });
+            model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
+                                    view_entry_kind::string, key.has_value()));
             break;
         case sjo::json_type::null:
-            model.append(view_entry{
-                .key = key,
-                .value = util::trim_space(doc.raw_json_token()),
-                .indent = level,
-                .kind = view_entry_kind::null,
-            });
+            model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
+                                    view_entry_kind::null, key.has_value()));
             break;
         default:
             throw std::logic_error("unknown doc type");
@@ -182,13 +156,10 @@ namespace json
                 }
                 indent = cur->entry.indent;
             }
-            switch (cur->entry.kind)
+            if (cur->entry.flags.collapsible())
             {
-            case view_entry_kind::object_open:
-            case view_entry_kind::array_open:
                 stack.emplace_back(cur);
                 ++indent;
-                break;
             }
             cur = cur->next;
         }
