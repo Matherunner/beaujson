@@ -178,10 +178,13 @@ private:
     void print_json(int rows)
     {
         erase();
+
         auto *p = _view_model_cur;
+        auto *last = _view_model_cur;
         int i = 0;
-        for (; i < rows && p != _view_model.tail(); ++i)
+        for (; i < rows - 1 && p != _view_model.tail(); ++i)
         {
+            last = p;
             _print_buffer.clear();
             for (int j = 0; j < p->entry.indent; ++j)
             {
@@ -207,16 +210,34 @@ private:
             mvaddstr(i, 0, _print_buffer.c_str());
             p = p->forward();
         }
+
         attr_on(A_BOLD, nullptr);
-        for (; i < rows; ++i)
+        for (; i < rows - 1; ++i)
         {
             mvaddstr(i, 0, "~");
         }
         attr_off(A_BOLD, nullptr);
+
         if (_row_highlight >= 0)
         {
             mvchgat(_row_highlight, 0, -1, A_STANDOUT, 0, nullptr);
         }
+
+        _print_buffer.clear();
+        auto it = std::back_inserter(_print_buffer);
+        it = std::format_to(it, "{}-", _view_model_cur->entry.model_line_num);
+        if (last)
+        {
+            it = std::format_to(it, "{}", last->entry.model_line_num);
+        }
+        else
+        {
+            *it++ = '?';
+            *it++ = '?';
+        }
+        it = std::format_to(it, "/{}", _view_model.tail()->prev->entry.model_line_num);
+        mvaddstr(rows - 1, 0, _print_buffer.c_str());
+        mvchgat(rows - 1, 0, -1, A_STANDOUT, 0, nullptr);
     }
 
     json::view_model load_view_model_from_clipboard()
@@ -284,7 +305,7 @@ public:
         {
             auto *p = _view_model_cur;
             int i = 0;
-            for (; i < state.rows() && i < event.y() && p != _view_model.tail(); ++i)
+            for (; i < state.rows() - 1 && i < event.y() && p != _view_model.tail(); ++i)
             {
                 p = p->forward();
             }

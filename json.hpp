@@ -76,7 +76,7 @@ namespace json
 
         view_entry() {}
         view_entry(std::string_view key, std::string_view value, size_t indent, view_entry_kind kind, bool has_key)
-            : key(key), value(value), indent(indent),
+            : key(key), value(value), indent(indent), model_line_num(0),
               flags(flags_t(entry_kind_to_bits(kind) | (entry_flag::HAS_KEY & -has_key)))
         {
         }
@@ -85,7 +85,7 @@ namespace json
         std::string_view key;
         std::string_view value;
         size_t indent;
-        size_t model_line_no;
+        size_t model_line_num;
         flags_t flags;
     };
 

@@ -169,12 +169,24 @@ namespace json
         }
     }
 
+    static void set_line_nums(view_model &model)
+    {
+        size_t line_num = 0;
+        auto *cur = model.head();
+        while (cur != model.tail())
+        {
+            cur->entry.model_line_num = ++line_num;
+            cur = cur->next;
+        }
+    }
+
     view_model load(const std::vector<char> &content)
     {
         view_model model(sjo::parser{});
         sjo::document doc = model.parser().iterate(content.data(), content.size(), content.capacity());
         doc_to_view_model(model, std::move(doc));
         add_skips(model);
+        set_line_nums(model);
         return model;
     }
 }
