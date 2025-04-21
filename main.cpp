@@ -89,13 +89,13 @@ private:
 
     void enable_mouse_move()
     {
-        puts("\e[?1003h");
+        puts("\033[?1003h");
         fflush(stdout);
     }
 
     void disable_mouse_move()
     {
-        puts("\e[?1003l");
+        puts("\033[?1003l");
         fflush(stdout);
     }
 
@@ -187,7 +187,7 @@ private:
         {
             last = p;
             _print_buffer.clear();
-            for (int j = 0; j < p->entry.indent; ++j)
+            for (size_t j = 0; j < p->entry.indent; ++j)
             {
                 _print_buffer.push_back(' ');
             }

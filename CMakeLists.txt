@@ -50,6 +50,10 @@ add_executable(beaujson
     util.cpp
 )
 
+target_compile_options(beaujson PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
+)
+
 target_include_directories(beaujson PRIVATE
     ${CURSES_INCLUDE_DIR}
     vendor/CLI11
