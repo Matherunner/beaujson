@@ -37,6 +37,10 @@ add_executable(beaujson
     util.cpp
 )
 
+if(APPLE)
+    set(CMAKE_PREFIX_PATH /opt/homebrew/opt/ncurses)
+endif()
+
 set(CURSES_NEED_WIDE TRUE)
 find_package(Curses REQUIRED)
 
