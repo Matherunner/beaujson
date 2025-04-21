@@ -17,17 +17,19 @@ jobs:
       fail-fast: false
 
       matrix:
-        build_type: [Release]
         include:
           - os: ubuntu-latest
             c_compiler: clang
             cpp_compiler: clang++
+            build_type: Release
           - os: macos-latest
             c_compiler: clang
             cpp_compiler: clang++
+            build_type: Release
           - os: macos-13
             c_compiler: clang
             cpp_compiler: clang++
+            build_type: Release
 
     steps:
     - uses: actions/checkout@v4
