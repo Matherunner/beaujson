@@ -1,5 +1,7 @@
 # beaujson
 
+⚠️ Alpha quality ⚠️
+
 ## Building
 
 Dependencies are added as subtrees under vendor, so no action needed to fetch them.
