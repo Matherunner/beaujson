@@ -38,7 +38,7 @@ add_executable(beaujson
 )
 
 if(APPLE)
-    set(CMAKE_PREFIX_PATH /opt/homebrew/opt/ncurses)
+    set(CMAKE_PREFIX_PATH "/opt/homebrew/opt/ncurses;/usr/local/opt/ncurses")
 endif()
 
 set(CURSES_NEED_WIDE TRUE)
