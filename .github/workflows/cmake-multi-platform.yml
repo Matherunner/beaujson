@@ -26,10 +26,11 @@ jobs:
             c_compiler: clang
             cpp_compiler: clang++
             build_type: Release
-          - os: macos-13
-            c_compiler: $(brew --prefix llvm@15)/bin/clang
-            cpp_compiler: $(brew --prefix llvm@15)/bin/clang++
-            build_type: Release
+          # Disabled for now as the compiler doesn't support C++20 fully
+          # - os: macos-13
+          #   c_compiler: $(brew --prefix llvm@15)/bin/clang
+          #   cpp_compiler: $(brew --prefix llvm@15)/bin/clang++
+          #   build_type: Release
 
     steps:
     - uses: actions/checkout@v4
