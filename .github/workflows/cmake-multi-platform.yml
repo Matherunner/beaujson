@@ -27,8 +27,8 @@ jobs:
             cpp_compiler: clang++
             build_type: Release
           - os: macos-13
-            c_compiler: gcc-14
-            cpp_compiler: g++-14
+            c_compiler: $(brew --prefix llvm@15)/bin/clang
+            cpp_compiler: $(brew --prefix llvm@15)/bin/clang++
             build_type: Release
 
     steps:
