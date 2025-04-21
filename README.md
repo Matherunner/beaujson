@@ -2,6 +2,8 @@
 
 ⚠️ Alpha quality ⚠️
 
+![image](https://github.com/user-attachments/assets/2f29334e-53ec-4c4f-8634-a4ebad88e5e4)
+
 ## Building
 
 Dependencies are added as subtrees under vendor, so no action needed to fetch them.
