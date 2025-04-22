@@ -34,6 +34,8 @@ include(CTest)
 include(Catch)
 catch_discover_tests(tests)
 
+find_package(Curses REQUIRED)
+
 add_executable(beaujson
     main.cpp
     json.cpp
@@ -41,16 +43,15 @@ add_executable(beaujson
     util.cpp
 )
 
-if(APPLE)
-    set(CMAKE_PREFIX_PATH "/opt/homebrew/opt/ncurses;/usr/local/opt/ncurses")
-endif()
-
-set(CURSES_NEED_WIDE TRUE)
-find_package(Curses REQUIRED)
-
-include_directories(
+target_include_directories(beaujson PRIVATE
     ${CURSES_INCLUDE_DIR}
     vendor/CLI11
+)
+
+target_link_libraries(beaujson PRIVATE
+    clip
+    simdjson
+    ${CURSES_LIBRARIES}
 )
 
 if(CMAKE_BUILD_TYPE MATCHES "Release")
@@ -58,9 +59,3 @@ if(CMAKE_BUILD_TYPE MATCHES "Release")
     set_property(TARGET clip PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
     set_property(TARGET simdjson PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif()
-
-target_link_libraries(beaujson PRIVATE
-    clip
-    simdjson
-    ${CURSES_LIBRARIES}
-)
