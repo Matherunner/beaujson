@@ -36,14 +36,6 @@ include(CTest)
 include(Catch)
 catch_discover_tests(tests)
 
-if(APPLE)
-    set(CMAKE_PREFIX_PATH "/opt/homebrew/opt/ncurses;/usr/local/opt/ncurses")
-endif()
-
-set(CURSES_NEED_NCURSES TRUE)
-set(CURSES_NEED_WIDE TRUE)
-find_package(Curses REQUIRED)
-
 add_executable(beaujson
     main.cpp
     json.cpp
@@ -60,10 +52,19 @@ target_include_directories(beaujson PRIVATE
     vendor/CLI11
 )
 
+target_link_options(beaujson PRIVATE -static)
+
+set(NCURSES_LIBRARIES "ncursesw" "tinfo")
+if(APPLE)
+    set(CLIP_LIBRARIES "clip")
+elseif(UNIX)
+    set(CLIP_LIBRARIES "clip" "Xau" "Xdmcp")
+endif()
+
 target_link_libraries(beaujson PRIVATE
-    clip
     simdjson
-    ${CURSES_LIBRARIES}
+    ${NCURSES_LIBRARIES}
+    ${CLIP_LIBRARIES}
 )
 
 if(CMAKE_BUILD_TYPE MATCHES "Release")
