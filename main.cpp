@@ -29,9 +29,7 @@ public:
     inline bool right_up() const { return _event.bstate & BUTTON3_RELEASED; }
     inline bool move() const { return _event.bstate & REPORT_MOUSE_POSITION; }
     inline bool scroll_up() const { return _event.bstate & BUTTON4_PRESSED; }
-#ifdef BUTTON5_PRESSED
     inline bool scroll_down() const { return _event.bstate & BUTTON5_PRESSED; }
-#endif
     inline bool ctrl() const { return _event.bstate & BUTTON_CTRL; }
     inline bool alt() const { return _event.bstate & BUTTON_ALT; }
     inline bool shift() const { return _event.bstate & BUTTON_SHIFT; }
