@@ -4,7 +4,7 @@ project(BeauJson LANGUAGES CXX)
 cmake_policy(SET CMP0069 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 
-set(BUILD_SHARED_LIBS OFF)
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,6 +36,7 @@ include(CTest)
 include(Catch)
 catch_discover_tests(tests)
 
+set(CURSES_NEED_NCURSES TRUE)
 find_package(Curses REQUIRED)
 
 add_executable(beaujson
