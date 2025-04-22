@@ -4,11 +4,11 @@ project(BeauJson LANGUAGES CXX)
 cmake_policy(SET CMP0069 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 
-set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
 # Disable unnecessary features in clip library
 set(CLIP_ENABLE_IMAGE OFF CACHE BOOL "" FORCE)
@@ -35,6 +35,10 @@ target_link_libraries(tests PRIVATE
 include(CTest)
 include(Catch)
 catch_discover_tests(tests)
+
+if(APPLE)
+    set(CMAKE_PREFIX_PATH "/opt/homebrew/opt/ncurses;/usr/local/opt/ncurses")
+endif()
 
 set(CURSES_NEED_NCURSES TRUE)
 find_package(Curses REQUIRED)

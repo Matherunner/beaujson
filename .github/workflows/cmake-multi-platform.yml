@@ -47,6 +47,9 @@ jobs:
         if [[ "$RUNNER_OS" == "Linux" ]]; then
           sudo apt-get update
           sudo apt-get install -y libncurses-dev libxcb1-dev
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          brew update
+          brew install ncurses
         fi
 
     - name: Configure CMake
