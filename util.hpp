@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string_view>
+#include <vector>
 
 #define DISABLE_COPY(A)                                                                                                \
     A(const A &) = delete;                                                                                             \
@@ -19,4 +20,5 @@ namespace util
     };
 
     std::string_view trim_space(std::string_view &&input);
+    void read_all_stdin(std::vector<char> &content, size_t padding_size);
 }

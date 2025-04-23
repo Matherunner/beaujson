@@ -172,6 +172,12 @@ public:
     }
 };
 
+enum class data_source
+{
+    clipboard,
+    stdin,
+};
+
 class main_handler
 {
 private:
@@ -247,10 +253,30 @@ private:
         mvchgat(rows - 1, 0, -1, A_STANDOUT, 0, nullptr);
     }
 
+    json::view_model load_view_model_from_source(data_source source)
+    {
+        switch (source)
+        {
+        case data_source::clipboard:
+            return load_view_model_from_clipboard();
+        case data_source::stdin:
+            return load_view_model_from_stdin();
+        default:
+            throw std::logic_error("unknown data source type");
+        }
+    }
+
     json::view_model load_view_model_from_clipboard()
     {
         _file_name = "<CLIPBOARD>";
         clipboard::get_clipboard_text(_content, simdjson::SIMDJSON_PADDING);
+        return json::load(_content);
+    }
+
+    json::view_model load_view_model_from_stdin()
+    {
+        _file_name = "<STDIN>";
+        util::read_all_stdin(_content, simdjson::SIMDJSON_PADDING);
         return json::load(_content);
     }
 
@@ -296,7 +322,7 @@ private:
     inline bool at_bottom() const { return _view_model_cur->forward() == _view_model.tail(); }
 
 public:
-    main_handler() : _view_model(load_view_model_from_clipboard()) {}
+    main_handler(data_source source) : _view_model(load_view_model_from_source(source)) {}
     main_handler(const std::string &file_path) : _view_model(load_view_model_from_file(file_path)) {}
     DISABLE_COPY(main_handler)
     DEFAULT_MOVE(main_handler)
@@ -494,7 +520,11 @@ static main_handler make_main_handler(const cli_options &opts)
 {
     if (opts.input_file.empty())
     {
-        return main_handler();
+        if (isatty(STDIN_FILENO))
+        {
+            return main_handler(data_source::clipboard);
+        }
+        return main_handler(data_source::stdin);
     }
     return main_handler(opts.input_file);
 }
