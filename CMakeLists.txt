@@ -20,6 +20,12 @@ add_subdirectory(vendor/clip)
 add_subdirectory(vendor/simdjson)
 add_subdirectory(vendor/catch2)
 
+include_directories(
+    ${CURSES_INCLUDE_DIR}
+    vendor/CLI11
+    vendor/utfcpp/source
+)
+
 add_executable(tests
     json.cpp
     json_test.cpp
@@ -45,11 +51,6 @@ add_executable(beaujson
 
 target_compile_options(beaujson PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
-)
-
-target_include_directories(beaujson PRIVATE
-    ${CURSES_INCLUDE_DIR}
-    vendor/CLI11
 )
 
 target_link_options(beaujson PRIVATE -static)
