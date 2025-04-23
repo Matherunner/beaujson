@@ -64,6 +64,12 @@ template <typename Handler>
 class main_app
 {
 private:
+    // ALL_MOUSE_EVENTS doesn't work property on Terminal.app on macOS as the clicks aren't registered consistently when
+    // the *_CLICKED events are included in the mask. Terminal.app in general has poor mouse support.
+    static constexpr unsigned MOUSE_MASK = BUTTON1_PRESSED | BUTTON1_RELEASED | BUTTON2_PRESSED | BUTTON2_RELEASED |
+                                           BUTTON3_PRESSED | BUTTON3_RELEASED | BUTTON4_PRESSED | BUTTON4_RELEASED |
+                                           BUTTON5_PRESSED | BUTTON5_RELEASED | REPORT_MOUSE_POSITION;
+
     Handler _handler;
     app_state _state;
 
@@ -75,7 +81,7 @@ private:
         raw();
         mouseinterval(0);
         keypad(stdscr, TRUE);
-        mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, nullptr);
+        mousemask(MOUSE_MASK, nullptr);
         curs_set(0);
         enable_mouse_move();
         update_dimensions();
