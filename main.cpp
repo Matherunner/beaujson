@@ -175,7 +175,7 @@ public:
 enum class data_source
 {
     clipboard,
-    stdin,
+    pipe,
 };
 
 class main_handler
@@ -259,7 +259,7 @@ private:
         {
         case data_source::clipboard:
             return load_view_model_from_clipboard();
-        case data_source::stdin:
+        case data_source::pipe:
             return load_view_model_from_stdin();
         default:
             throw std::logic_error("unknown data source type");
@@ -524,7 +524,7 @@ static main_handler make_main_handler(const cli_options &opts)
         {
             return main_handler(data_source::clipboard);
         }
-        return main_handler(data_source::stdin);
+        return main_handler(data_source::pipe);
     }
     return main_handler(opts.input_file);
 }
