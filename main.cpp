@@ -4,7 +4,9 @@
 #include <format>
 #include <variant>
 
+#include <fcntl.h>
 #include <ncurses.h>
+#include <unistd.h>
 
 #include "clipboard.hpp"
 #include "json.hpp"
@@ -60,6 +62,53 @@ public:
     inline int cols() const { return _cols; }
 };
 
+class tty_file
+{
+private:
+    int _fd = -1;
+    FILE *_file = nullptr;
+
+    void _open()
+    {
+        _fd = open("/dev/tty", O_RDWR);
+        if (_fd < 0)
+        {
+            throw std::runtime_error("unable to open tty");
+        }
+        _file = fdopen(_fd, "r+");
+        if (!_file)
+        {
+            throw std::runtime_error("unable to open tty fd");
+        }
+    }
+
+    void _cleanup()
+    {
+        if (_fd >= 0)
+        {
+            close(_fd);
+        }
+        if (_file)
+        {
+            std::fclose(_file);
+        }
+    }
+
+public:
+    tty_file() { _open(); }
+    ~tty_file() { _cleanup(); }
+    tty_file &operator=(tty_file &&other)
+    {
+        std::swap(_fd, other._fd);
+        std::swap(_file, other._file);
+        return *this;
+    }
+    tty_file(tty_file &&other) { *this = std::move(other); }
+    DISABLE_COPY(tty_file)
+
+    inline FILE *file() const { return _file; }
+};
+
 template <typename Handler>
 class main_app
 {
@@ -72,10 +121,12 @@ private:
 
     Handler _handler;
     app_state _state;
+    tty_file _tty_file;
 
     void init()
     {
-        initscr();
+        // Use /dev/tty instead of stdin so that we can exhaust stdin and still read from user input via the terminal.
+        newterm(nullptr, _tty_file.file(), _tty_file.file());
         cbreak();
         noecho();
         raw();
@@ -159,6 +210,9 @@ public:
 
             case 3:
                 goto out;
+
+            case -1:
+                throw std::runtime_error("unable to read input");
 
             default:
                 ret = call_handler_key(_state, c);
@@ -540,7 +594,16 @@ int main(int argc, char **argv)
     }
     auto opts = std::move(std::get<cli_options>(opts_or_ret));
 
-    main_app app(make_main_handler(opts));
-    app.run();
+    try
+    {
+        main_app app(make_main_handler(opts));
+        app.run();
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Encountered an error: " << e.what() << '\n';
+        return 1;
+    }
+
     return 0;
 }
