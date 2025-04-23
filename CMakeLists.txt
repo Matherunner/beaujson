@@ -26,7 +26,7 @@ if(APPLE)
     set(CLIP_LIBRARIES "clip")
 elseif(UNIX)
     set(NCURSES_LIBRARIES "ncursesw" "tinfo")
-    set(CLIP_LIBRARIES "clip" "Xau" "Xdmcp")
+    set(CLIP_LIBRARIES "Xau" "Xdmcp" "clip")
 endif()
 
 include_directories(
