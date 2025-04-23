@@ -211,7 +211,7 @@ namespace json
             while (cur != _dummy_tail.get())
             {
                 std::cout << "LINE: ";
-                for (int i = 0; i < cur->entry.indent; ++i)
+                for (size_t i = 0; i < cur->entry.indent; ++i)
                 {
                     std::cout << "  ";
                 }

@@ -20,6 +20,21 @@ add_subdirectory(vendor/clip)
 add_subdirectory(vendor/simdjson)
 add_subdirectory(vendor/catch2)
 
+if(APPLE)
+    set(NCURSES_LIBRARIES "/opt/homebrew/opt/ncurses/lib/libncursesw.a")
+    set(NCURSES_INCLUDE_DIR "/opt/homebrew/opt/ncurses/include")
+    set(CLIP_LIBRARIES "clip")
+elseif(UNIX)
+    set(NCURSES_LIBRARIES "ncursesw" "tinfo")
+    set(CLIP_LIBRARIES "Xau" "Xdmcp" "clip")
+endif()
+
+include_directories(
+    ${NCURSES_INCLUDE_DIR}
+    vendor/CLI11
+    vendor/utfcpp/source
+)
+
 add_executable(tests
     json.cpp
     json_test.cpp
@@ -36,13 +51,6 @@ include(CTest)
 include(Catch)
 catch_discover_tests(tests)
 
-if(APPLE)
-    set(CMAKE_PREFIX_PATH "/opt/homebrew/opt/ncurses;/usr/local/opt/ncurses")
-endif()
-
-set(CURSES_NEED_NCURSES TRUE)
-find_package(Curses REQUIRED)
-
 add_executable(beaujson
     main.cpp
     json.cpp
@@ -50,15 +58,19 @@ add_executable(beaujson
     util.cpp
 )
 
-target_include_directories(beaujson PRIVATE
-    ${CURSES_INCLUDE_DIR}
-    vendor/CLI11
+if(UNIX AND NOT APPLE)
+    # This doesn't work on Apple clang, and we don't really need it
+    target_link_options(beaujson PRIVATE -static)
+endif()
+
+target_compile_options(beaujson PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
 )
 
 target_link_libraries(beaujson PRIVATE
-    clip
     simdjson
-    ${CURSES_LIBRARIES}
+    ${NCURSES_LIBRARIES}
+    ${CLIP_LIBRARIES}
 )
 
 if(CMAKE_BUILD_TYPE MATCHES "Release")

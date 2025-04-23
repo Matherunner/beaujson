@@ -139,7 +139,7 @@ namespace json
     {
         std::vector<view_model_node *> stack;
         auto *cur = model.head();
-        int indent = 0;
+        size_t indent = 0;
         while (cur != model.tail())
         {
             if (cur->entry.indent < indent)

@@ -4,7 +4,9 @@
 #include <format>
 #include <variant>
 
+#include <fcntl.h>
 #include <ncurses.h>
+#include <unistd.h>
 
 #include "clipboard.hpp"
 #include "json.hpp"
@@ -60,22 +62,77 @@ public:
     inline int cols() const { return _cols; }
 };
 
+class tty_file
+{
+private:
+    int _fd = -1;
+    FILE *_file = nullptr;
+
+    void _open()
+    {
+        _fd = open("/dev/tty", O_RDWR);
+        if (_fd < 0)
+        {
+            throw std::runtime_error("unable to open tty");
+        }
+        _file = fdopen(_fd, "r+");
+        if (!_file)
+        {
+            throw std::runtime_error("unable to open tty fd");
+        }
+    }
+
+    void _cleanup()
+    {
+        if (_fd >= 0)
+        {
+            close(_fd);
+        }
+        if (_file)
+        {
+            std::fclose(_file);
+        }
+    }
+
+public:
+    tty_file() { _open(); }
+    ~tty_file() { _cleanup(); }
+    tty_file &operator=(tty_file &&other)
+    {
+        std::swap(_fd, other._fd);
+        std::swap(_file, other._file);
+        return *this;
+    }
+    tty_file(tty_file &&other) { *this = std::move(other); }
+    DISABLE_COPY(tty_file)
+
+    inline FILE *file() const { return _file; }
+};
+
 template <typename Handler>
 class main_app
 {
 private:
+    // ALL_MOUSE_EVENTS doesn't work property on Terminal.app on macOS as the clicks aren't registered consistently when
+    // the *_CLICKED events are included in the mask. Terminal.app in general has poor mouse support.
+    static constexpr unsigned MOUSE_MASK = BUTTON1_PRESSED | BUTTON1_RELEASED | BUTTON2_PRESSED | BUTTON2_RELEASED |
+                                           BUTTON3_PRESSED | BUTTON3_RELEASED | BUTTON4_PRESSED | BUTTON4_RELEASED |
+                                           BUTTON5_PRESSED | BUTTON5_RELEASED | REPORT_MOUSE_POSITION;
+
     Handler _handler;
     app_state _state;
+    tty_file _tty_file;
 
     void init()
     {
-        initscr();
+        // Use /dev/tty instead of stdin so that we can exhaust stdin and still read from user input via the terminal.
+        newterm(nullptr, _tty_file.file(), _tty_file.file());
         cbreak();
         noecho();
         raw();
         mouseinterval(0);
         keypad(stdscr, TRUE);
-        mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, nullptr);
+        mousemask(MOUSE_MASK, nullptr);
         curs_set(0);
         enable_mouse_move();
         update_dimensions();
@@ -89,13 +146,13 @@ private:
 
     void enable_mouse_move()
     {
-        puts("\e[?1003h");
+        puts("\033[?1003h");
         fflush(stdout);
     }
 
     void disable_mouse_move()
     {
-        puts("\e[?1003l");
+        puts("\033[?1003l");
         fflush(stdout);
     }
 
@@ -154,6 +211,9 @@ public:
             case 3:
                 goto out;
 
+            case -1:
+                throw std::runtime_error("unable to read input");
+
             default:
                 ret = call_handler_key(_state, c);
                 if (ret == app_control::stop)
@@ -164,6 +224,12 @@ public:
         }
     out:;
     }
+};
+
+enum class data_source
+{
+    clipboard,
+    pipe,
 };
 
 class main_handler
@@ -187,7 +253,7 @@ private:
         {
             last = p;
             _print_buffer.clear();
-            for (int j = 0; j < p->entry.indent; ++j)
+            for (size_t j = 0; j < p->entry.indent; ++j)
             {
                 _print_buffer.push_back(' ');
             }
@@ -241,10 +307,30 @@ private:
         mvchgat(rows - 1, 0, -1, A_STANDOUT, 0, nullptr);
     }
 
+    json::view_model load_view_model_from_source(data_source source)
+    {
+        switch (source)
+        {
+        case data_source::clipboard:
+            return load_view_model_from_clipboard();
+        case data_source::pipe:
+            return load_view_model_from_stdin();
+        default:
+            throw std::logic_error("unknown data source type");
+        }
+    }
+
     json::view_model load_view_model_from_clipboard()
     {
         _file_name = "<CLIPBOARD>";
         clipboard::get_clipboard_text(_content, simdjson::SIMDJSON_PADDING);
+        return json::load(_content);
+    }
+
+    json::view_model load_view_model_from_stdin()
+    {
+        _file_name = "<STDIN>";
+        util::read_all_stdin(_content, simdjson::SIMDJSON_PADDING);
         return json::load(_content);
     }
 
@@ -290,7 +376,7 @@ private:
     inline bool at_bottom() const { return _view_model_cur->forward() == _view_model.tail(); }
 
 public:
-    main_handler() : _view_model(load_view_model_from_clipboard()) {}
+    main_handler(data_source source) : _view_model(load_view_model_from_source(source)) {}
     main_handler(const std::string &file_path) : _view_model(load_view_model_from_file(file_path)) {}
     DISABLE_COPY(main_handler)
     DEFAULT_MOVE(main_handler)
@@ -488,7 +574,11 @@ static main_handler make_main_handler(const cli_options &opts)
 {
     if (opts.input_file.empty())
     {
-        return main_handler();
+        if (isatty(STDIN_FILENO))
+        {
+            return main_handler(data_source::clipboard);
+        }
+        return main_handler(data_source::pipe);
     }
     return main_handler(opts.input_file);
 }
@@ -504,7 +594,16 @@ int main(int argc, char **argv)
     }
     auto opts = std::move(std::get<cli_options>(opts_or_ret));
 
-    main_app app(make_main_handler(opts));
-    app.run();
+    try
+    {
+        main_app app(make_main_handler(opts));
+        app.run();
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Encountered an error: " << e.what() << '\n';
+        return 1;
+    }
+
     return 0;
 }
