@@ -24,11 +24,8 @@ public:
 
     inline MEVENT *data() { return &_event; }
     inline bool left_down() const { return _event.bstate & BUTTON1_PRESSED; }
-    inline bool left_up() const { return _event.bstate & BUTTON1_RELEASED; }
     inline bool mid_down() const { return _event.bstate & BUTTON2_PRESSED; }
-    inline bool mid_up() const { return _event.bstate & BUTTON2_RELEASED; }
     inline bool right_down() const { return _event.bstate & BUTTON3_PRESSED; }
-    inline bool right_up() const { return _event.bstate & BUTTON3_RELEASED; }
     inline bool move() const { return _event.bstate & REPORT_MOUSE_POSITION; }
     inline bool scroll_up() const { return _event.bstate & BUTTON4_PRESSED; }
     inline bool scroll_down() const { return _event.bstate & BUTTON5_PRESSED; }
@@ -115,9 +112,8 @@ class main_app
 private:
     // ALL_MOUSE_EVENTS doesn't work property on Terminal.app on macOS as the clicks aren't registered consistently when
     // the *_CLICKED events are included in the mask. Terminal.app in general has poor mouse support.
-    static constexpr unsigned MOUSE_MASK = BUTTON1_PRESSED | BUTTON1_RELEASED | BUTTON2_PRESSED | BUTTON2_RELEASED |
-                                           BUTTON3_PRESSED | BUTTON3_RELEASED | BUTTON4_PRESSED | BUTTON4_RELEASED |
-                                           BUTTON5_PRESSED | BUTTON5_RELEASED | REPORT_MOUSE_POSITION;
+    static constexpr unsigned MOUSE_MASK =
+        BUTTON1_PRESSED | BUTTON2_PRESSED | BUTTON3_PRESSED | BUTTON4_PRESSED | BUTTON5_PRESSED | REPORT_MOUSE_POSITION;
 
     Handler _handler;
     app_state _state;
