@@ -404,15 +404,29 @@ private:
         _print_buffer.clear();
         for (const auto elem : buffer)
         {
-            // FIXME: should check character width!
-            int new_col = cur_col + elem.size() + 1;
-            if (new_col >= state.cols())
+            _print_buffer.push_back('>');
+            ++cur_col;
+            auto it = elem.cbegin();
+            auto end = elem.cend();
+            while (it != end)
+            {
+                auto old = it;
+                int32_t c = utf8::next(it, end);
+                int new_col = cur_col + util::is_full_width(c) + 1;
+                if (new_col > state.cols())
+                {
+                    break;
+                }
+                cur_col = new_col;
+                while (old != it)
+                {
+                    _print_buffer.push_back(*old++);
+                }
+            }
+            if (cur_col > state.cols())
             {
                 break;
             }
-            cur_col = new_col;
-            _print_buffer.push_back('>');
-            _print_buffer += elem;
         }
 
         move(state.rows() - 2, 0);
