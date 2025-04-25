@@ -11,6 +11,7 @@
 #include "clipboard.hpp"
 #include "json.hpp"
 #include "simdjson.h"
+#include "utf8.h"
 #include "vendor/CLI11/CLI11.hpp"
 
 class mouse_event
@@ -231,6 +232,8 @@ enum class data_source
 class main_handler
 {
 private:
+    static constexpr int MINIMUM_WIDTH = 16;
+
     std::string _file_name;
     std::string _print_buffer;
     std::vector<char> _content;
@@ -238,27 +241,88 @@ private:
     json::view_model_node *_view_model_cur;
     int _row_highlight = -1;
 
-    void print_json(int rows)
+    inline static int get_key_width_limit(const app_state &state)
+    {
+        // Account for "<ellipses character>: "
+        return state.cols() / 3 - 3;
+    }
+
+    inline static int get_value_max_col(const app_state &state)
+    {
+        // Account for "<ellipses character> [+]"
+        return state.cols() - 5;
+    }
+
+    void print_json(const app_state &state)
     {
         erase();
+
+        if (state.cols() < MINIMUM_WIDTH)
+        {
+            return;
+        }
 
         auto *p = _view_model_cur;
         auto *last = _view_model_cur;
         int i = 0;
-        for (; i < rows - 1 && p != _view_model.tail(); ++i)
+        for (; i < state.rows() - 1 && p != _view_model.tail(); ++i)
         {
             last = p;
             _print_buffer.clear();
+            int cur_col = p->entry.indent;
             for (size_t j = 0; j < p->entry.indent; ++j)
             {
                 _print_buffer.push_back(' ');
             }
             if (p->entry.flags.has_key())
             {
-                _print_buffer += p->entry.key;
+                auto it = p->entry.key.cbegin();
+                auto end = p->entry.key.cend();
+                while (it != end)
+                {
+                    auto old = it;
+                    int32_t c = utf8::next(it, end);
+                    cur_col += util::is_full_width(c) + 1;
+                    if (cur_col > get_key_width_limit(state))
+                    {
+                        break;
+                    }
+                    while (old != it)
+                    {
+                        _print_buffer.push_back(*old++);
+                    }
+                }
+                if (it != end)
+                {
+                    _print_buffer += "…";
+                    ++cur_col;
+                }
                 _print_buffer += ": ";
+                cur_col += 2;
             }
-            _print_buffer += p->entry.value;
+            {
+                auto it = p->entry.value.cbegin();
+                auto end = p->entry.value.cend();
+                while (it != end)
+                {
+                    auto old = it;
+                    int32_t c = utf8::next(it, end);
+                    cur_col += util::is_full_width(c) + 1;
+                    if (cur_col > get_value_max_col(state))
+                    {
+                        break;
+                    }
+                    while (old != it)
+                    {
+                        _print_buffer.push_back(*old++);
+                    }
+                }
+                if (it != end)
+                {
+                    _print_buffer += "…";
+                    ++cur_col;
+                }
+            }
             if (p->entry.flags.collapsible())
             {
                 if (p->collapsed())
@@ -269,13 +333,14 @@ private:
                 {
                     _print_buffer += " [-]";
                 }
+                cur_col += 4;
             }
             mvaddstr(i, 0, _print_buffer.c_str());
             p = p->forward();
         }
 
         attr_on(A_BOLD, nullptr);
-        for (; i < rows - 1; ++i)
+        for (; i < state.rows() - 1; ++i)
         {
             mvaddstr(i, 0, "~");
         }
@@ -286,6 +351,11 @@ private:
             mvchgat(_row_highlight, 0, -1, A_STANDOUT, 0, nullptr);
         }
 
+        print_status_bar(state.rows(), last);
+    }
+
+    void print_status_bar(int rows, const json::view_model_node *last)
+    {
         _print_buffer.clear();
         auto it = std::back_inserter(_print_buffer);
         it = std::format_to(it, "{}-", _view_model_cur->entry.model_line_num);
@@ -380,7 +450,7 @@ public:
     app_control start(const app_state &state)
     {
         _view_model_cur = _view_model.head();
-        print_json(state.rows());
+        print_json(state);
         return app_control::ok;
     }
 
@@ -404,7 +474,7 @@ public:
                 {
                     p->set_collapse();
                 }
-                print_json(state.rows());
+                print_json(state);
             }
         }
         if (event.move())
@@ -424,7 +494,7 @@ public:
 
     app_control resize(const app_state &state)
     {
-        print_json(state.rows());
+        print_json(state);
         return app_control::ok;
     }
 
@@ -441,7 +511,7 @@ public:
                 p->set_collapse();
                 p = p->next;
             }
-            print_json(state.rows());
+            print_json(state);
             break;
         }
         case '+':
@@ -453,7 +523,7 @@ public:
                 p->set_expand();
                 p = p->next;
             }
-            print_json(state.rows());
+            print_json(state);
             break;
         }
         case 'j':
@@ -466,7 +536,7 @@ public:
             else
             {
                 scroll_forward(1);
-                print_json(state.rows());
+                print_json(state);
             }
             break;
         case 'k':
@@ -478,7 +548,7 @@ public:
             else
             {
                 scroll_backward(1);
-                print_json(state.rows());
+                print_json(state);
             }
             break;
         case 'f':
@@ -490,7 +560,7 @@ public:
             else
             {
                 scroll_forward(state.rows());
-                print_json(state.rows());
+                print_json(state);
             }
             break;
         case 'b':
@@ -501,7 +571,7 @@ public:
             else
             {
                 scroll_backward(state.rows());
-                print_json(state.rows());
+                print_json(state);
             }
             break;
         case 'd':
@@ -512,7 +582,7 @@ public:
             else
             {
                 scroll_forward(state.rows() / 2);
-                print_json(state.rows());
+                print_json(state);
             }
             break;
         case 'u':
@@ -523,16 +593,16 @@ public:
             else
             {
                 scroll_backward(state.rows() / 2);
-                print_json(state.rows());
+                print_json(state);
             }
             break;
         case 'g':
             scroll_to_top();
-            print_json(state.rows());
+            print_json(state);
             break;
         case 'G':
             scroll_to_bottom();
-            print_json(state.rows());
+            print_json(state);
             break;
         case 'q':
             return app_control::stop;
