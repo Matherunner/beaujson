@@ -262,10 +262,11 @@ private:
             return;
         }
 
+        const int row_end = state.rows() - 2;
         auto *p = _view_model_cur;
         auto *last = _view_model_cur;
         int i = 0;
-        for (; i < state.rows() - 1 && p != _view_model.tail(); ++i)
+        for (; i < row_end && p != _view_model.tail(); ++i)
         {
             last = p;
             _print_buffer.clear();
@@ -340,7 +341,7 @@ private:
         }
 
         attr_on(A_BOLD, nullptr);
-        for (; i < state.rows() - 1; ++i)
+        for (; i < row_end; ++i)
         {
             mvaddstr(i, 0, "~");
         }
@@ -351,10 +352,76 @@ private:
             mvchgat(_row_highlight, 0, -1, A_STANDOUT, 0, nullptr);
         }
 
-        print_status_bar(state.rows(), last);
+        print_breadcrumb(state);
+
+        print_status_bar(state, last);
     }
 
-    void print_status_bar(int rows, const json::view_model_node *last)
+    void print_breadcrumb(const app_state &state)
+    {
+        if (_row_highlight < 0)
+        {
+            return;
+        }
+
+        auto *p = _view_model_cur;
+        for (int i = 0; i < _row_highlight; ++i)
+        {
+            if (!p)
+            {
+                return;
+            }
+            p = p->forward();
+        }
+
+        std::vector<std::string_view> buffer;
+        while (p)
+        {
+            if (p->entry.key.empty())
+            {
+                if (p->entry.flags.is_object_open())
+                {
+                    buffer.push_back("{");
+                }
+                else if (p->entry.flags.is_array_open())
+                {
+                    buffer.push_back("[");
+                }
+                else
+                {
+                    buffer.push_back(".");
+                }
+            }
+            else
+            {
+                buffer.push_back(p->entry.key);
+            }
+            p = p->parent;
+        }
+        std::reverse(buffer.begin(), buffer.end());
+
+        int cur_col = 0;
+        _print_buffer.clear();
+        for (const auto elem : buffer)
+        {
+            // FIXME: should check character width!
+            int new_col = cur_col + elem.size() + 1;
+            if (new_col >= state.cols())
+            {
+                break;
+            }
+            cur_col = new_col;
+            _print_buffer.push_back('>');
+            _print_buffer += elem;
+        }
+
+        move(state.rows() - 2, 0);
+        clrtoeol();
+        addstr(_print_buffer.c_str());
+        mvchgat(state.rows() - 2, 0, -1, A_STANDOUT, 0, nullptr);
+    }
+
+    void print_status_bar(const app_state &state, const json::view_model_node *last)
     {
         _print_buffer.clear();
         auto it = std::back_inserter(_print_buffer);
@@ -369,8 +436,11 @@ private:
             *it++ = '?';
         }
         it = std::format_to(it, "/{} - {}", _view_model.tail()->prev->entry.model_line_num, _file_name);
-        mvaddstr(rows - 1, 0, _print_buffer.c_str());
-        mvchgat(rows - 1, 0, -1, A_STANDOUT, 0, nullptr);
+        move(state.rows() - 1, 0);
+        clrtoeol();
+        addstr(_print_buffer.c_str());
+        move(state.rows() - 1, 0);
+        chgat(-1, A_STANDOUT, 0, nullptr);
     }
 
     json::view_model load_view_model_from_source(data_source source)
@@ -486,8 +556,9 @@ public:
                     mvchgat(_row_highlight, 0, -1, A_NORMAL, 0, nullptr);
                 }
                 mvchgat(event.y(), 0, -1, A_STANDOUT, 0, nullptr);
+                _row_highlight = event.y();
+                print_breadcrumb(state);
             }
-            _row_highlight = event.y();
         }
         return app_control::ok;
     }

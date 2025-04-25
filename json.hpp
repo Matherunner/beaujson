@@ -66,6 +66,9 @@ namespace json
             inline uint32_t bits() const { return _b; }
             inline void set_bits(uint32_t b) { _b = b; }
 
+            inline bool is_object_open() const { return _b & entry_flag::OBJECT_OPEN_KIND; }
+            inline bool is_array_open() const { return _b & entry_flag::ARRAY_OPEN_KIND; }
+
             inline bool collapsible() const
             {
                 return _b & (entry_flag::OBJECT_OPEN_KIND | entry_flag::ARRAY_OPEN_KIND);
@@ -98,6 +101,7 @@ namespace json
     public:
         view_entry entry;
         view_model_node *forward_skip = nullptr;
+        view_model_node *parent;
         view_model_node *next;
         view_model_node *prev;
 
@@ -159,9 +163,11 @@ namespace json
         {
             _dummy_head->next = _dummy_tail.get();
             _dummy_head->prev = nullptr;
+            _dummy_head->parent = nullptr;
             _dummy_head->entry.key = "[HEAD]";
             _dummy_tail->next = nullptr;
             _dummy_tail->prev = _dummy_head.get();
+            _dummy_tail->parent = nullptr;
             _dummy_tail->entry.key = "[TAIL]";
         }
 
@@ -196,13 +202,15 @@ namespace json
         inline view_model_node *head() const { return _dummy_head->next; }
         inline view_model_node *tail() const { return _dummy_tail.get(); }
 
-        void append(view_entry &&entry)
+        view_model_node *append(view_entry &&entry, view_model_node *parent)
         {
             auto *node = new view_model_node(std::move(entry));
             node->prev = _dummy_tail->prev;
             node->next = _dummy_tail.get();
+            node->parent = parent;
             _dummy_tail->prev->next = node;
             _dummy_tail->prev = node;
+            return node;
         }
 
         void debug_print()
