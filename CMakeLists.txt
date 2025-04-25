@@ -60,7 +60,7 @@ add_executable(beaujson
     east_asian_width.cpp
 )
 
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND CMAKE_BUILD_TYPE MATCHES "Release")
     # This doesn't work on Apple clang, and we don't really need it
     target_link_options(beaujson PRIVATE -static)
 endif()
@@ -71,8 +71,8 @@ target_compile_options(beaujson PRIVATE
 
 target_link_libraries(beaujson PRIVATE
     simdjson
-    ${NCURSES_LIBRARIES}
     ${CLIP_LIBRARIES}
+    ${NCURSES_LIBRARIES}
 )
 
 if(CMAKE_BUILD_TYPE MATCHES "Release")
