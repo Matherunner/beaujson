@@ -8,11 +8,11 @@
 #include <ncurses.h>
 #include <unistd.h>
 
+#include "CLI11.hpp"
 #include "clipboard.hpp"
 #include "json.hpp"
 #include "simdjson.h"
 #include "utf8.h"
-#include "vendor/CLI11/CLI11.hpp"
 
 class mouse_event
 {
