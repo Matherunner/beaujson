@@ -1,5 +1,4 @@
 #include "util.hpp"
-
 #include <cstdio>
 
 constexpr const char *JSON_WHITESPACES = " \t\r\n";

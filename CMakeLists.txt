@@ -4,7 +4,7 @@ project(BeauJson LANGUAGES CXX)
 cmake_policy(SET CMP0069 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -40,6 +40,7 @@ add_executable(tests
     json_test.cpp
     util.cpp
     util_test.cpp
+    east_asian_width.cpp
 )
 
 target_link_libraries(tests PRIVATE
@@ -56,6 +57,7 @@ add_executable(beaujson
     json.cpp
     clipboard.cpp
     util.cpp
+    east_asian_width.cpp
 )
 
 if(UNIX AND NOT APPLE)
