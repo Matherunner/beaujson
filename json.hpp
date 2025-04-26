@@ -66,8 +66,14 @@ namespace json
             inline uint32_t bits() const { return _b; }
             inline void set_bits(uint32_t b) { _b = b; }
 
-            inline bool is_object_open() const { return _b & entry_flag::OBJECT_OPEN_KIND; }
-            inline bool is_array_open() const { return _b & entry_flag::ARRAY_OPEN_KIND; }
+            inline bool object_open() const { return _b & entry_flag::OBJECT_OPEN_KIND; }
+            inline bool array_open() const { return _b & entry_flag::ARRAY_OPEN_KIND; }
+
+            inline bool primitive() const
+            {
+                return _b & (entry_flag::NULL_KIND | entry_flag::NUMBER_KIND | entry_flag::STRING_KIND |
+                             entry_flag::BOOLEAN_KIND);
+            }
 
             inline bool collapsible() const
             {

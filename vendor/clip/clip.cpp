@@ -102,11 +102,11 @@ bool clear() {
     return false;
 }
 
-bool set_text(const std::string& value) {
+bool set_text(std::string_view value) {
   lock l;
   if (l.locked()) {
     l.clear();
-    return l.set_data(text_format(), value.c_str(), value.size());
+    return l.set_data(text_format(), value.data(), value.size());
   }
   else
     return false;

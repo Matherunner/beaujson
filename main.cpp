@@ -253,6 +253,20 @@ private:
         return state.cols() - 5;
     }
 
+    json::view_model_node *node_at_line(int line) const
+    {
+        if (line < 0)
+        {
+            return nullptr;
+        }
+        auto *p = _view_model_cur;
+        for (int i = 0; i < line && p != _view_model.tail(); ++i)
+        {
+            p = p->forward();
+        }
+        return p != _view_model.tail() ? p : nullptr;
+    }
+
     void print_json(const app_state &state)
     {
         erase();
@@ -364,14 +378,10 @@ private:
             return;
         }
 
-        auto *p = _view_model_cur;
-        for (int i = 0; i < _row_highlight; ++i)
+        const auto *p = node_at_line(_row_highlight);
+        if (!p)
         {
-            if (!p)
-            {
-                return;
-            }
-            p = p->forward();
+            return;
         }
 
         std::vector<std::string_view> buffer;
@@ -379,11 +389,11 @@ private:
         {
             if (p->entry.key.empty())
             {
-                if (p->entry.flags.is_object_open())
+                if (p->entry.flags.object_open())
                 {
                     buffer.push_back("{");
                 }
-                else if (p->entry.flags.is_array_open())
+                else if (p->entry.flags.array_open())
                 {
                     buffer.push_back("[");
                 }
@@ -542,13 +552,8 @@ public:
     {
         if (event.left_down())
         {
-            auto *p = _view_model_cur;
-            int i = 0;
-            for (; i < state.rows() - 1 && i < event.y() && p != _view_model.tail(); ++i)
-            {
-                p = p->forward();
-            }
-            if (p->entry.flags.collapsible())
+            auto *p = node_at_line(event.y());
+            if (p && p->entry.flags.collapsible())
             {
                 if (p->collapsed())
                 {
@@ -648,6 +653,22 @@ public:
                 print_json(state);
             }
             break;
+        case 'c':
+        {
+            const auto *p = node_at_line(_row_highlight);
+            if (p)
+            {
+                if (p->entry.flags.primitive())
+                {
+                    clipboard::set_clipboard_text(p->entry.value);
+                }
+                else
+                {
+                    beep();
+                }
+            }
+            break;
+        }
         case 'b':
             if (at_top())
             {
