@@ -74,7 +74,7 @@ if(CMAKE_BUILD_TYPE MATCHES "Release")
 endif()
 
 target_compile_options(beaujson PRIVATE
-    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic -Werror -Wshadow -Wold-style-cast -Wnull-dereference -Wconversion>
 )
 
 target_link_libraries(beaujson PRIVATE

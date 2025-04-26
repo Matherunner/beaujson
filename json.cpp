@@ -151,21 +151,21 @@ namespace json
         for (size_t i = 0; i < model.idx_tail(); ++i)
         {
             auto &cur = model.at(i);
-            if (cur.entry.indent < indent)
+            if (cur.entry.indent() < indent)
             {
                 while (!stack.empty())
                 {
                     auto &top = model.at(stack.back());
-                    if (top.entry.indent < cur.entry.indent)
+                    if (top.entry.indent() < cur.entry.indent())
                     {
                         break;
                     }
                     top.idx_skip = i;
                     stack.pop_back();
                 }
-                indent = cur.entry.indent;
+                indent = cur.entry.indent();
             }
-            if (cur.entry.flags.collapsible())
+            if (cur.entry.flags().collapsible())
             {
                 stack.emplace_back(i);
                 ++indent;

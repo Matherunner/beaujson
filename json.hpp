@@ -50,51 +50,57 @@ namespace json
         }
     }
 
-    struct view_entry
+    class view_entry_flags
     {
-        class flags_t
+    private:
+        uint32_t _b;
+
+    public:
+        view_entry_flags() : _b(0) {}
+        view_entry_flags(uint32_t b) : _b(b) {}
+
+        inline uint32_t bits() const { return _b; }
+        inline void set_bits(uint32_t b) { _b = b; }
+
+        inline bool object_open() const { return _b & entry_flag::OBJECT_OPEN_KIND; }
+        inline bool array_open() const { return _b & entry_flag::ARRAY_OPEN_KIND; }
+
+        inline bool primitive() const
         {
-        private:
-            uint32_t _b;
+            return _b & (entry_flag::NULL_KIND | entry_flag::NUMBER_KIND | entry_flag::STRING_KIND |
+                         entry_flag::BOOLEAN_KIND);
+        }
 
-        public:
-            flags_t() : _b(0) {}
-            flags_t(uint32_t b) : _b(b) {}
+        inline bool collapsible() const { return _b & (entry_flag::OBJECT_OPEN_KIND | entry_flag::ARRAY_OPEN_KIND); }
 
-            inline uint32_t bits() const { return _b; }
-            inline void set_bits(uint32_t b) { _b = b; }
+        inline bool has_key() const { return _b & entry_flag::HAS_KEY; }
+    };
 
-            inline bool object_open() const { return _b & entry_flag::OBJECT_OPEN_KIND; }
-            inline bool array_open() const { return _b & entry_flag::ARRAY_OPEN_KIND; }
+    class view_entry
+    {
+    private:
+        std::string_view _key;
+        std::string_view _value;
+        size_t _indent;
+        size_t _model_line_num;
+        view_entry_flags _flags;
 
-            inline bool primitive() const
-            {
-                return _b & (entry_flag::NULL_KIND | entry_flag::NUMBER_KIND | entry_flag::STRING_KIND |
-                             entry_flag::BOOLEAN_KIND);
-            }
-
-            inline bool collapsible() const
-            {
-                return _b & (entry_flag::OBJECT_OPEN_KIND | entry_flag::ARRAY_OPEN_KIND);
-            }
-
-            inline bool has_key() const { return _b & entry_flag::HAS_KEY; }
-        };
-
+    public:
         view_entry() {}
         view_entry(std::string_view key, std::string_view value, size_t indent, view_entry_kind kind, bool has_key)
-            : key(key), value(value), indent(indent), model_line_num(0),
-              flags(flags_t(entry_kind_to_bits(kind) | (entry_flag::HAS_KEY & -has_key)))
+            : _key(key), _value(value), _indent(indent), _model_line_num(0),
+              _flags(view_entry_flags(entry_kind_to_bits(kind) | (entry_flag::HAS_KEY & -has_key)))
         {
         }
         DEFAULT_MOVE(view_entry)
         DISABLE_COPY(view_entry)
 
-        std::string_view key;
-        std::string_view value;
-        size_t indent;
-        size_t model_line_num;
-        flags_t flags;
+        inline auto indent() const { return _indent; }
+        inline auto flags() const { return _flags; }
+        inline auto key() const { return _key; }
+        inline auto value() const { return _value; }
+        inline auto model_line_num() const { return _model_line_num; }
+        inline void set_model_line_num(size_t value) { _model_line_num = value; }
     };
 
     constexpr size_t INVALID_IDX = static_cast<size_t>(-1);
@@ -102,8 +108,7 @@ namespace json
     class view_model_node
     {
     private:
-        // TODO: indents should be size_t
-        std::map<int, size_t> _backward_skips;
+        std::map<size_t, size_t> _backward_skips;
         bool _collapsed = false;
 
     public:
@@ -130,9 +135,9 @@ namespace json
             return INVALID_IDX;
         }
 
-        inline void add_backward(int indent, size_t idx) { _backward_skips.insert({indent, idx}); }
+        inline void add_backward(size_t indent, size_t idx) { _backward_skips.insert({indent, idx}); }
 
-        inline void remove_backward(int indent) { _backward_skips.erase(indent); }
+        inline void remove_backward(size_t indent) { _backward_skips.erase(indent); }
     };
 
     class view_model
@@ -192,21 +197,21 @@ namespace json
             node.set_collapsed(false);
             if (node.idx_skip != INVALID_IDX)
             {
-                at(node.idx_skip).remove_backward(node.entry.indent);
+                at(node.idx_skip).remove_backward(node.entry.indent());
             }
         }
 
         void set_collapse(size_t idx)
         {
             auto &node = at(idx);
-            if (node.collapsed() || !node.entry.flags.collapsible())
+            if (node.collapsed() || !node.entry.flags().collapsible())
             {
                 return;
             }
             node.set_collapsed(true);
             if (node.idx_skip != INVALID_IDX)
             {
-                at(node.idx_skip).add_backward(node.entry.indent, idx);
+                at(node.idx_skip).add_backward(node.entry.indent(), idx);
             }
         }
 
@@ -215,7 +220,7 @@ namespace json
             size_t line_num = 0;
             for (auto &node : _nodes)
             {
-                node.entry.model_line_num = ++line_num;
+                node.entry.set_model_line_num(++line_num);
             }
         }
     };

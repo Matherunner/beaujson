@@ -29,13 +29,13 @@ private:
     size_t _idx_cur = json::INVALID_IDX;
     int _row_highlight = -1;
 
-    inline static int get_key_width_limit(const app_state &state)
+    inline static size_t get_key_width_limit(const app_state &state)
     {
         // Account for "<ellipses character>: "
         return state.cols() / 3 - 3;
     }
 
-    inline static int get_value_max_col(const app_state &state)
+    inline static size_t get_value_max_col(const app_state &state)
     {
         // Account for "<ellipses character> [+]"
         return state.cols() - 5;
@@ -74,21 +74,21 @@ private:
 
             last = p;
             const auto &node = _view_model.at(p);
-            int cur_col = node.entry.indent;
+            size_t cur_col = node.entry.indent();
 
             move(i, 0);
 
             attr_on(A_DIM, nullptr);
-            for (size_t j = 0; j < node.entry.indent; ++j)
+            for (size_t j = 0; j < node.entry.indent(); ++j)
             {
                 addch(ACS_BULLET);
             }
             attr_off(A_DIM, nullptr);
 
-            if (node.entry.flags.has_key())
+            if (node.entry.flags().has_key())
             {
-                auto it = node.entry.key.cbegin();
-                auto end = node.entry.key.cend();
+                auto it = node.entry.key().cbegin();
+                auto end = node.entry.key().cend();
                 while (it != end)
                 {
                     auto old = it;
@@ -112,8 +112,8 @@ private:
                 cur_col += 2;
             }
             {
-                auto it = node.entry.value.cbegin();
-                auto end = node.entry.value.cend();
+                auto it = node.entry.value().cbegin();
+                auto end = node.entry.value().cend();
                 while (it != end)
                 {
                     auto old = it;
@@ -134,7 +134,7 @@ private:
                     ++cur_col;
                 }
             }
-            if (node.entry.flags.collapsible())
+            if (node.entry.flags().collapsible())
             {
                 if (node.collapsed())
                 {
@@ -160,8 +160,11 @@ private:
         if (_row_highlight >= 0)
         {
             auto idx = idx_at_line(_row_highlight);
-            int x = idx != json::INVALID_IDX ? _view_model.at(idx).entry.indent : 0;
-            mvchgat(_row_highlight, x, -1, A_STANDOUT, 0, nullptr);
+            size_t x = idx != json::INVALID_IDX ? _view_model.at(idx).entry.indent() : 0;
+            if (x < static_cast<size_t>(state.cols()))
+            {
+                mvchgat(_row_highlight, static_cast<int>(x), -1, A_STANDOUT, 0, nullptr);
+            }
         }
 
         print_breadcrumb(state);
@@ -186,13 +189,13 @@ private:
         while (p < _view_model.idx_tail())
         {
             const auto &node = _view_model.at(p);
-            if (node.entry.key.empty())
+            if (node.entry.key().empty())
             {
-                if (node.entry.flags.object_open())
+                if (node.entry.flags().object_open())
                 {
                     buffer.push_back("{");
                 }
-                else if (node.entry.flags.array_open())
+                else if (node.entry.flags().array_open())
                 {
                     buffer.push_back("[");
                 }
@@ -203,7 +206,7 @@ private:
             }
             else
             {
-                buffer.push_back(node.entry.key);
+                buffer.push_back(node.entry.key());
             }
             p = node.idx_parent;
         }
@@ -248,20 +251,20 @@ private:
     {
         _print_buffer.clear();
         auto it = std::back_inserter(_print_buffer);
-        it = std::format_to(it, "{}-", _view_model.at(_idx_cur).entry.model_line_num);
+        it = std::format_to(it, "{}-", _view_model.at(_idx_cur).entry.model_line_num());
         if (idx_last != json::INVALID_IDX)
         {
             // Get the rightmost descendent
             auto idx = _view_model.forward(idx_last) - 1;
-            it = std::format_to(it, "{}", _view_model.at(idx).entry.model_line_num);
+            it = std::format_to(it, "{}", _view_model.at(idx).entry.model_line_num());
         }
         else
         {
             *it++ = '?';
             *it++ = '?';
         }
-        it =
-            std::format_to(it, "/{} - {}", _view_model.at(_view_model.idx_tail() - 1).entry.model_line_num, _file_name);
+        it = std::format_to(it, "/{} - {}", _view_model.at(_view_model.idx_tail() - 1).entry.model_line_num(),
+                            _file_name);
         move(state.rows() - 1, 0);
         clrtoeol();
         addstr(_print_buffer.c_str());
@@ -358,7 +361,7 @@ public:
             if (p != json::INVALID_IDX)
             {
                 auto &node = _view_model.at(p);
-                if (node.entry.flags.collapsible())
+                if (node.entry.flags().collapsible())
                 {
                     if (node.collapsed())
                     {
@@ -379,13 +382,19 @@ public:
                 if (_row_highlight >= 0)
                 {
                     auto p = idx_at_line(_row_highlight);
-                    int x = p != json::INVALID_IDX ? _view_model.at(p).entry.indent : 0;
-                    mvchgat(_row_highlight, x, -1, A_NORMAL, 0, nullptr);
+                    size_t x = p != json::INVALID_IDX ? _view_model.at(p).entry.indent() : 0;
+                    if (x < static_cast<size_t>(state.cols()))
+                    {
+                        mvchgat(_row_highlight, static_cast<int>(x), -1, A_NORMAL, 0, nullptr);
+                    }
                 }
                 _row_highlight = event.y();
                 auto p = idx_at_line(_row_highlight);
-                int x = p != json::INVALID_IDX ? _view_model.at(p).entry.indent : 0;
-                mvchgat(event.y(), x, -1, A_STANDOUT, 0, nullptr);
+                size_t x = p != json::INVALID_IDX ? _view_model.at(p).entry.indent() : 0;
+                if (x < static_cast<size_t>(state.cols()))
+                {
+                    mvchgat(event.y(), static_cast<int>(x), -1, A_STANDOUT, 0, nullptr);
+                }
                 print_breadcrumb(state);
             }
         }
@@ -463,9 +472,9 @@ public:
             if (p != json::INVALID_IDX)
             {
                 auto &node = _view_model.at(p);
-                if (node.entry.flags.primitive())
+                if (node.entry.flags().primitive())
                 {
-                    clipboard::set_clipboard_text(node.entry.value);
+                    clipboard::set_clipboard_text(node.entry.value());
                 }
                 else
                 {
