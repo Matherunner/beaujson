@@ -285,10 +285,15 @@ private:
             last = p;
             _print_buffer.clear();
             int cur_col = p->entry.indent;
+            move(i, 0);
+
+            attr_on(A_DIM, nullptr);
             for (size_t j = 0; j < p->entry.indent; ++j)
             {
-                _print_buffer.push_back(' ');
+                addch(ACS_BULLET);
             }
+            attr_off(A_DIM, nullptr);
+
             if (p->entry.flags.has_key())
             {
                 auto it = p->entry.key.cbegin();
@@ -350,7 +355,7 @@ private:
                 }
                 cur_col += 4;
             }
-            mvaddstr(i, 0, _print_buffer.c_str());
+            addstr(_print_buffer.c_str());
             p = p->forward();
         }
 
@@ -363,7 +368,9 @@ private:
 
         if (_row_highlight >= 0)
         {
-            mvchgat(_row_highlight, 0, -1, A_STANDOUT, 0, nullptr);
+            const auto *p = node_at_line(_row_highlight);
+            int x = p ? p->entry.indent : 0;
+            mvchgat(_row_highlight, x, -1, A_STANDOUT, 0, nullptr);
         }
 
         print_breadcrumb(state);
@@ -572,9 +579,13 @@ public:
             {
                 if (_row_highlight >= 0)
                 {
-                    mvchgat(_row_highlight, 0, -1, A_NORMAL, 0, nullptr);
+                    const auto *p = node_at_line(_row_highlight);
+                    int x = p ? p->entry.indent : 0;
+                    mvchgat(_row_highlight, x, -1, A_NORMAL, 0, nullptr);
                 }
-                mvchgat(event.y(), 0, -1, A_STANDOUT, 0, nullptr);
+                const auto *p = node_at_line(event.y());
+                int x = p ? p->entry.indent : 0;
+                mvchgat(event.y(), x, -1, A_STANDOUT, 0, nullptr);
                 _row_highlight = event.y();
                 print_breadcrumb(state);
             }
