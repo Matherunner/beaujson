@@ -60,9 +60,17 @@ add_executable(beaujson
     east_asian_width.cpp
 )
 
-if(UNIX AND NOT APPLE AND CMAKE_BUILD_TYPE MATCHES "Release")
-    # This doesn't work on Apple clang, and we don't really need it
-    target_link_options(beaujson PRIVATE -static)
+if(CMAKE_BUILD_TYPE MATCHES "Release")
+    if(UNIX AND NOT APPLE)
+        # This doesn't work on Apple clang, and we don't really need it
+        target_link_options(beaujson PRIVATE -static)
+    endif()
+
+    add_definitions(-DNDEBUG)
+
+    set_property(TARGET beaujson PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    set_property(TARGET clip PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    set_property(TARGET simdjson PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif()
 
 target_compile_options(beaujson PRIVATE
@@ -74,9 +82,3 @@ target_link_libraries(beaujson PRIVATE
     ${CLIP_LIBRARIES}
     ${NCURSES_LIBRARIES}
 )
-
-if(CMAKE_BUILD_TYPE MATCHES "Release")
-    set_property(TARGET beaujson PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-    set_property(TARGET clip PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-    set_property(TARGET simdjson PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
