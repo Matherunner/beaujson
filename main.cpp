@@ -29,6 +29,8 @@ private:
     size_t _idx_cur = json::INVALID_IDX;
     int _row_highlight = -1;
 
+    inline static int content_screen_height(const app_state &state) { return state.rows() - 2; }
+
     inline static size_t get_key_width_limit(const app_state &state)
     {
         // Account for "<ellipses character>: "
@@ -64,7 +66,7 @@ private:
             return;
         }
 
-        const int row_end = state.rows() - 2;
+        const int row_end = content_screen_height(state);
         auto p = _idx_cur;
         auto last = _idx_cur;
         int i = 0;
@@ -462,7 +464,7 @@ public:
             }
             else
             {
-                scroll_forward(state.rows() - 2);
+                scroll_forward(content_screen_height(state));
                 print_json(state);
             }
             break;
@@ -490,7 +492,7 @@ public:
             }
             else
             {
-                scroll_backward(state.rows() - 2);
+                scroll_backward(content_screen_height(state));
                 print_json(state);
             }
             break;
@@ -501,7 +503,7 @@ public:
             }
             else
             {
-                scroll_forward((state.rows() - 2) / 2);
+                scroll_forward(content_screen_height(state) / 2);
                 print_json(state);
             }
             break;
@@ -512,7 +514,7 @@ public:
             }
             else
             {
-                scroll_backward((state.rows() - 2) / 2);
+                scroll_backward(content_screen_height(state) / 2);
                 print_json(state);
             }
             break;
