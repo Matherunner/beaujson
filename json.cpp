@@ -92,45 +92,45 @@ namespace sjo = simdjson::ondemand;
 namespace json
 {
     static void doc_to_view_model(view_model &model, sjo::value doc, std::optional<std::string_view> key, size_t level,
-                                  view_model_node *parent)
+                                  size_t idx_parent)
     {
         switch (doc.type())
         {
         case sjo::json_type::object:
-            parent = model.append(
-                view_entry(key.value_or(""), "{", level, view_entry_kind::object_open, key.has_value()), parent);
+            idx_parent = model.append(
+                view_entry(key.value_or(""), "{", level, view_entry_kind::object_open, key.has_value()), idx_parent);
             for (auto elem : doc.get_object())
             {
-                doc_to_view_model(model, elem.value(), elem.escaped_key(), level + 1, parent);
+                doc_to_view_model(model, elem.value(), elem.escaped_key(), level + 1, idx_parent);
             }
             break;
         case sjo::json_type::array:
-            parent = model.append(
-                view_entry(key.value_or(""), "[", level, view_entry_kind::array_open, key.has_value()), parent);
+            idx_parent = model.append(
+                view_entry(key.value_or(""), "[", level, view_entry_kind::array_open, key.has_value()), idx_parent);
             for (auto elem : doc.get_array())
             {
-                doc_to_view_model(model, elem.value(), std::nullopt, level + 1, parent);
+                doc_to_view_model(model, elem.value(), std::nullopt, level + 1, idx_parent);
             }
             break;
         case sjo::json_type::boolean:
             model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
                                     view_entry_kind::boolean, key.has_value()),
-                         parent);
+                         idx_parent);
             break;
         case sjo::json_type::number:
             model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
                                     view_entry_kind::number, key.has_value()),
-                         parent);
+                         idx_parent);
             break;
         case sjo::json_type::string:
             model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
                                     view_entry_kind::string, key.has_value()),
-                         parent);
+                         idx_parent);
             break;
         case sjo::json_type::null:
             model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
                                     view_entry_kind::null, key.has_value()),
-                         parent);
+                         idx_parent);
             break;
         default:
             throw std::logic_error("unknown doc type");
@@ -139,51 +139,41 @@ namespace json
 
     static inline void doc_to_view_model(view_model &model, sjo::document doc)
     {
-        doc_to_view_model(model, doc, std::nullopt, 0, nullptr);
+        doc_to_view_model(model, doc, std::nullopt, 0, INVALID_IDX);
+        // Add sentinel (tail)
+        model.append(json::view_entry(), INVALID_IDX);
     }
 
     static void add_skips(view_model &model)
     {
-        std::vector<view_model_node *> stack;
-        auto *cur = model.head();
         size_t indent = 0;
-        while (cur != model.tail())
+        std::vector<size_t> stack;
+        for (size_t i = 0; i < model.idx_tail(); ++i)
         {
-            if (cur->entry.indent < indent)
+            auto &cur = model.at(i);
+            if (cur.entry.indent < indent)
             {
                 while (!stack.empty())
                 {
-                    auto top = stack.back();
-                    if (top->entry.indent < cur->entry.indent)
+                    auto &top = model.at(stack.back());
+                    if (top.entry.indent < cur.entry.indent)
                     {
                         break;
                     }
-                    top->forward_skip = cur;
+                    top.idx_skip = i;
                     stack.pop_back();
                 }
-                indent = cur->entry.indent;
+                indent = cur.entry.indent;
             }
-            if (cur->entry.flags.collapsible())
+            if (cur.entry.flags.collapsible())
             {
-                stack.emplace_back(cur);
+                stack.emplace_back(i);
                 ++indent;
             }
-            cur = cur->next;
         }
-        for (auto *elem : stack)
+        for (auto idx : stack)
         {
-            elem->forward_skip = model.tail();
-        }
-    }
-
-    static void set_line_nums(view_model &model)
-    {
-        size_t line_num = 0;
-        auto *cur = model.head();
-        while (cur != model.tail())
-        {
-            cur->entry.model_line_num = ++line_num;
-            cur = cur->next;
+            model.at(idx).idx_skip = model.idx_tail();
         }
     }
 
@@ -193,7 +183,7 @@ namespace json
         sjo::document doc = model.parser().iterate(content.data(), content.size(), content.capacity());
         doc_to_view_model(model, std::move(doc));
         add_skips(model);
-        set_line_nums(model);
+        model.set_line_nums();
         return model;
     }
 }

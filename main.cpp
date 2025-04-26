@@ -4,224 +4,12 @@
 #include <format>
 #include <variant>
 
-#include <fcntl.h>
-#include <ncurses.h>
-#include <unistd.h>
-
 #include "CLI11.hpp"
+#include "app.hpp"
 #include "clipboard.hpp"
 #include "json.hpp"
 #include "simdjson.h"
 #include "utf8.h"
-
-class mouse_event
-{
-private:
-    MEVENT _event;
-
-public:
-    mouse_event() {}
-    DISABLE_COPY(mouse_event)
-
-    inline MEVENT *data() { return &_event; }
-    inline bool left_down() const { return _event.bstate & BUTTON1_PRESSED; }
-    inline bool mid_down() const { return _event.bstate & BUTTON2_PRESSED; }
-    inline bool right_down() const { return _event.bstate & BUTTON3_PRESSED; }
-    inline bool move() const { return _event.bstate & REPORT_MOUSE_POSITION; }
-    inline bool scroll_up() const { return _event.bstate & BUTTON4_PRESSED; }
-    inline bool scroll_down() const { return _event.bstate & BUTTON5_PRESSED; }
-    inline bool ctrl() const { return _event.bstate & BUTTON_CTRL; }
-    inline bool alt() const { return _event.bstate & BUTTON_ALT; }
-    inline bool shift() const { return _event.bstate & BUTTON_SHIFT; }
-    inline int x() const { return _event.x; }
-    inline int y() const { return _event.y; }
-};
-
-enum class app_control : int
-{
-    ok,
-    stop,
-};
-
-class app_state
-{
-private:
-    int _rows = 0;
-    int _cols = 0;
-
-public:
-    app_state() {}
-    ~app_state() {}
-    DISABLE_COPY(app_state)
-
-    inline void set_rows(int rows) { _rows = rows; }
-    inline void set_cols(int cols) { _cols = cols; }
-    inline int rows() const { return _rows; }
-    inline int cols() const { return _cols; }
-};
-
-class tty_file
-{
-private:
-    int _fd = -1;
-    FILE *_file = nullptr;
-
-    void _open()
-    {
-        _fd = open("/dev/tty", O_RDWR);
-        if (_fd < 0)
-        {
-            throw std::runtime_error("unable to open tty");
-        }
-        _file = fdopen(_fd, "r+");
-        if (!_file)
-        {
-            throw std::runtime_error("unable to open tty fd");
-        }
-    }
-
-    void _cleanup()
-    {
-        if (_fd >= 0)
-        {
-            close(_fd);
-        }
-        if (_file)
-        {
-            std::fclose(_file);
-        }
-    }
-
-public:
-    tty_file() { _open(); }
-    ~tty_file() { _cleanup(); }
-    tty_file &operator=(tty_file &&other)
-    {
-        std::swap(_fd, other._fd);
-        std::swap(_file, other._file);
-        return *this;
-    }
-    tty_file(tty_file &&other) { *this = std::move(other); }
-    DISABLE_COPY(tty_file)
-
-    inline FILE *file() const { return _file; }
-};
-
-template <typename Handler>
-class main_app
-{
-private:
-    // ALL_MOUSE_EVENTS doesn't work property on Terminal.app on macOS as the clicks aren't registered consistently when
-    // the *_CLICKED events are included in the mask. Terminal.app in general has poor mouse support.
-    static constexpr unsigned MOUSE_MASK =
-        BUTTON1_PRESSED | BUTTON2_PRESSED | BUTTON3_PRESSED | BUTTON4_PRESSED | BUTTON5_PRESSED | REPORT_MOUSE_POSITION;
-
-    Handler _handler;
-    app_state _state;
-    tty_file _tty_file;
-
-    void init()
-    {
-        // Use /dev/tty instead of stdin so that we can exhaust stdin and still read from user input via the terminal.
-        newterm(nullptr, _tty_file.file(), _tty_file.file());
-        cbreak();
-        noecho();
-        raw();
-        mouseinterval(0);
-        keypad(stdscr, TRUE);
-        mousemask(MOUSE_MASK, nullptr);
-        curs_set(0);
-        enable_mouse_move();
-        update_dimensions();
-    }
-
-    void cleanup()
-    {
-        disable_mouse_move();
-        endwin();
-    }
-
-    void enable_mouse_move()
-    {
-        puts("\033[?1003h");
-        fflush(stdout);
-    }
-
-    void disable_mouse_move()
-    {
-        puts("\033[?1003l");
-        fflush(stdout);
-    }
-
-    void update_dimensions()
-    {
-        _state.set_rows(getmaxy(stdscr));
-        _state.set_cols(getmaxx(stdscr));
-    }
-
-    inline app_control call_handler_start(const app_state &state) { return _handler.start(state); }
-    inline app_control call_handler_mouse(const app_state &state, const mouse_event &event)
-    {
-        return _handler.mouse(state, event);
-    }
-    inline app_control call_handler_resize(const app_state &state) { return _handler.resize(state); }
-    inline app_control call_handler_key(const app_state &state, int c) { return _handler.key(state, c); }
-
-public:
-    main_app(Handler &&handler) : _handler(std::move(handler)) { init(); }
-    ~main_app() { cleanup(); }
-    DISABLE_COPY(main_app)
-
-    void run()
-    {
-        mouse_event mevent;
-        app_control ret = call_handler_start(_state);
-        if (ret == app_control::stop)
-        {
-            return;
-        }
-        for (;;)
-        {
-            int c = getch();
-            switch (c)
-            {
-            case KEY_MOUSE:
-                if (getmouse(mevent.data()) == OK)
-                {
-                    ret = call_handler_mouse(_state, mevent);
-                    if (ret == app_control::stop)
-                    {
-                        return;
-                    }
-                }
-                break;
-
-            case KEY_RESIZE:
-                update_dimensions();
-                ret = call_handler_resize(_state);
-                if (ret == app_control::stop)
-                {
-                    return;
-                }
-                break;
-
-            case 3:
-                goto out;
-
-            case -1:
-                throw std::runtime_error("unable to read input");
-
-            default:
-                ret = call_handler_key(_state, c);
-                if (ret == app_control::stop)
-                {
-                    return;
-                }
-            }
-        }
-    out:;
-    }
-};
 
 enum class data_source
 {
@@ -238,7 +26,7 @@ private:
     std::string _print_buffer;
     std::vector<char> _content;
     json::view_model _view_model;
-    json::view_model_node *_view_model_cur;
+    size_t _idx_cur = json::INVALID_IDX;
     int _row_highlight = -1;
 
     inline static int get_key_width_limit(const app_state &state)
@@ -253,18 +41,18 @@ private:
         return state.cols() - 5;
     }
 
-    json::view_model_node *node_at_line(int line) const
+    size_t idx_at_line(int line) const
     {
         if (line < 0)
         {
-            return nullptr;
+            return json::INVALID_IDX;
         }
-        auto *p = _view_model_cur;
-        for (int i = 0; i < line && p != _view_model.tail(); ++i)
+        size_t cur = _idx_cur;
+        for (int i = 0; i < line && cur < _view_model.idx_tail(); ++i)
         {
-            p = p->forward();
+            cur = _view_model.forward(cur);
         }
-        return p != _view_model.tail() ? p : nullptr;
+        return cur < _view_model.idx_tail() ? cur : json::INVALID_IDX;
     }
 
     void print_json(const app_state &state)
@@ -277,27 +65,30 @@ private:
         }
 
         const int row_end = state.rows() - 2;
-        auto *p = _view_model_cur;
-        auto *last = _view_model_cur;
+        auto p = _idx_cur;
+        auto last = _idx_cur;
         int i = 0;
-        for (; i < row_end && p != _view_model.tail(); ++i)
+        for (; i < row_end && p < _view_model.idx_tail(); ++i)
         {
-            last = p;
             _print_buffer.clear();
-            int cur_col = p->entry.indent;
+
+            last = p;
+            const auto &node = _view_model.at(p);
+            int cur_col = node.entry.indent;
+
             move(i, 0);
 
             attr_on(A_DIM, nullptr);
-            for (size_t j = 0; j < p->entry.indent; ++j)
+            for (size_t j = 0; j < node.entry.indent; ++j)
             {
                 addch(ACS_BULLET);
             }
             attr_off(A_DIM, nullptr);
 
-            if (p->entry.flags.has_key())
+            if (node.entry.flags.has_key())
             {
-                auto it = p->entry.key.cbegin();
-                auto end = p->entry.key.cend();
+                auto it = node.entry.key.cbegin();
+                auto end = node.entry.key.cend();
                 while (it != end)
                 {
                     auto old = it;
@@ -321,8 +112,8 @@ private:
                 cur_col += 2;
             }
             {
-                auto it = p->entry.value.cbegin();
-                auto end = p->entry.value.cend();
+                auto it = node.entry.value.cbegin();
+                auto end = node.entry.value.cend();
                 while (it != end)
                 {
                     auto old = it;
@@ -343,9 +134,9 @@ private:
                     ++cur_col;
                 }
             }
-            if (p->entry.flags.collapsible())
+            if (node.entry.flags.collapsible())
             {
-                if (p->collapsed())
+                if (node.collapsed())
                 {
                     _print_buffer += " [+]";
                 }
@@ -356,7 +147,7 @@ private:
                 cur_col += 4;
             }
             addstr(_print_buffer.c_str());
-            p = p->forward();
+            p = _view_model.forward(p);
         }
 
         attr_on(A_BOLD, nullptr);
@@ -368,8 +159,8 @@ private:
 
         if (_row_highlight >= 0)
         {
-            const auto *p = node_at_line(_row_highlight);
-            int x = p ? p->entry.indent : 0;
+            auto idx = idx_at_line(_row_highlight);
+            int x = idx != json::INVALID_IDX ? _view_model.at(idx).entry.indent : 0;
             mvchgat(_row_highlight, x, -1, A_STANDOUT, 0, nullptr);
         }
 
@@ -385,22 +176,23 @@ private:
             return;
         }
 
-        const auto *p = node_at_line(_row_highlight);
+        auto p = idx_at_line(_row_highlight);
         if (!p)
         {
             return;
         }
 
         std::vector<std::string_view> buffer;
-        while (p)
+        while (p < _view_model.idx_tail())
         {
-            if (p->entry.key.empty())
+            const auto &node = _view_model.at(p);
+            if (node.entry.key.empty())
             {
-                if (p->entry.flags.object_open())
+                if (node.entry.flags.object_open())
                 {
                     buffer.push_back("{");
                 }
-                else if (p->entry.flags.array_open())
+                else if (node.entry.flags.array_open())
                 {
                     buffer.push_back("[");
                 }
@@ -411,9 +203,9 @@ private:
             }
             else
             {
-                buffer.push_back(p->entry.key);
+                buffer.push_back(node.entry.key);
             }
-            p = p->parent;
+            p = node.idx_parent;
         }
         std::reverse(buffer.begin(), buffer.end());
 
@@ -452,21 +244,24 @@ private:
         mvchgat(state.rows() - 2, 0, -1, A_STANDOUT, 0, nullptr);
     }
 
-    void print_status_bar(const app_state &state, const json::view_model_node *last)
+    void print_status_bar(const app_state &state, size_t idx_last)
     {
         _print_buffer.clear();
         auto it = std::back_inserter(_print_buffer);
-        it = std::format_to(it, "{}-", _view_model_cur->entry.model_line_num);
-        if (last)
+        it = std::format_to(it, "{}-", _view_model.at(_idx_cur).entry.model_line_num);
+        if (idx_last != json::INVALID_IDX)
         {
-            it = std::format_to(it, "{}", last->entry.model_line_num);
+            // Get the rightmost descendent
+            auto idx = _view_model.forward(idx_last) - 1;
+            it = std::format_to(it, "{}", _view_model.at(idx).entry.model_line_num);
         }
         else
         {
             *it++ = '?';
             *it++ = '?';
         }
-        it = std::format_to(it, "/{} - {}", _view_model.tail()->prev->entry.model_line_num, _file_name);
+        it =
+            std::format_to(it, "/{} - {}", _view_model.at(_view_model.idx_tail() - 1).entry.model_line_num, _file_name);
         move(state.rows() - 1, 0);
         clrtoeol();
         addstr(_print_buffer.c_str());
@@ -520,27 +315,27 @@ private:
 
     void scroll_forward(int n)
     {
-        for (int i = 0; i < n && _view_model_cur->forward() != _view_model.tail(); ++i)
+        for (int i = 0; i < n && _view_model.forward(_idx_cur) < _view_model.idx_tail(); ++i)
         {
-            _view_model_cur = _view_model_cur->forward();
+            _idx_cur = _view_model.forward(_idx_cur);
         }
     }
 
     void scroll_backward(int n)
     {
-        for (int i = 0; i < n && _view_model_cur != _view_model.head(); ++i)
+        for (int i = 0; i < n && _idx_cur != 0; ++i)
         {
-            _view_model_cur = _view_model_cur->backward();
+            _idx_cur = _view_model.backward(_idx_cur);
         }
     }
 
-    inline void scroll_to_top() { _view_model_cur = _view_model.head(); }
+    inline void scroll_to_top() { _idx_cur = 0; }
 
-    inline void scroll_to_bottom() { _view_model_cur = _view_model.tail()->backward(); }
+    inline void scroll_to_bottom() { _idx_cur = _view_model.backward(_view_model.idx_tail()); }
 
-    inline bool at_top() const { return _view_model_cur == _view_model.head(); }
+    inline bool at_top() const { return _idx_cur == 0; }
 
-    inline bool at_bottom() const { return _view_model_cur->forward() == _view_model.tail(); }
+    inline bool at_bottom() const { return _view_model.forward(_idx_cur) == _view_model.idx_tail(); }
 
 public:
     main_handler(data_source source) : _view_model(load_view_model_from_source(source)) {}
@@ -550,7 +345,7 @@ public:
 
     app_control start(const app_state &state)
     {
-        _view_model_cur = _view_model.head();
+        _idx_cur = 0;
         print_json(state);
         return app_control::ok;
     }
@@ -559,18 +354,22 @@ public:
     {
         if (event.left_down())
         {
-            auto *p = node_at_line(event.y());
-            if (p && p->entry.flags.collapsible())
+            auto p = idx_at_line(event.y());
+            if (p != json::INVALID_IDX)
             {
-                if (p->collapsed())
+                auto &node = _view_model.at(p);
+                if (node.entry.flags.collapsible())
                 {
-                    p->set_expand();
+                    if (node.collapsed())
+                    {
+                        _view_model.set_expand(p);
+                    }
+                    else
+                    {
+                        _view_model.set_collapse(p);
+                    }
+                    print_json(state);
                 }
-                else
-                {
-                    p->set_collapse();
-                }
-                print_json(state);
             }
         }
         if (event.move())
@@ -579,14 +378,14 @@ public:
             {
                 if (_row_highlight >= 0)
                 {
-                    const auto *p = node_at_line(_row_highlight);
-                    int x = p ? p->entry.indent : 0;
+                    auto p = idx_at_line(_row_highlight);
+                    int x = p != json::INVALID_IDX ? _view_model.at(p).entry.indent : 0;
                     mvchgat(_row_highlight, x, -1, A_NORMAL, 0, nullptr);
                 }
-                const auto *p = node_at_line(event.y());
-                int x = p ? p->entry.indent : 0;
-                mvchgat(event.y(), x, -1, A_STANDOUT, 0, nullptr);
                 _row_highlight = event.y();
+                auto p = idx_at_line(_row_highlight);
+                int x = p != json::INVALID_IDX ? _view_model.at(p).entry.indent : 0;
+                mvchgat(event.y(), x, -1, A_STANDOUT, 0, nullptr);
                 print_breadcrumb(state);
             }
         }
@@ -605,24 +404,18 @@ public:
         {
         case '-':
         {
-            // Collapse all
-            auto *p = _view_model.head();
-            while (p != _view_model.tail())
+            for (size_t i = 0; i < _view_model.idx_tail(); ++i)
             {
-                p->set_collapse();
-                p = p->next;
+                _view_model.set_collapse(i);
             }
             print_json(state);
             break;
         }
         case '+':
         {
-            // Expand all
-            auto *p = _view_model.head();
-            while (p != _view_model.tail())
+            for (size_t i = 0; i < _view_model.idx_tail(); ++i)
             {
-                p->set_expand();
-                p = p->next;
+                _view_model.set_expand(i);
             }
             print_json(state);
             break;
@@ -660,18 +453,19 @@ public:
             }
             else
             {
-                scroll_forward(state.rows());
+                scroll_forward(state.rows() - 2);
                 print_json(state);
             }
             break;
         case 'c':
         {
-            const auto *p = node_at_line(_row_highlight);
-            if (p)
+            auto p = idx_at_line(_row_highlight);
+            if (p != json::INVALID_IDX)
             {
-                if (p->entry.flags.primitive())
+                auto &node = _view_model.at(p);
+                if (node.entry.flags.primitive())
                 {
-                    clipboard::set_clipboard_text(p->entry.value);
+                    clipboard::set_clipboard_text(node.entry.value);
                 }
                 else
                 {
@@ -687,7 +481,7 @@ public:
             }
             else
             {
-                scroll_backward(state.rows());
+                scroll_backward(state.rows() - 2);
                 print_json(state);
             }
             break;
@@ -698,7 +492,7 @@ public:
             }
             else
             {
-                scroll_forward(state.rows() / 2);
+                scroll_forward((state.rows() - 2) / 2);
                 print_json(state);
             }
             break;
@@ -709,7 +503,7 @@ public:
             }
             else
             {
-                scroll_backward(state.rows() / 2);
+                scroll_backward((state.rows() - 2) / 2);
                 print_json(state);
             }
             break;

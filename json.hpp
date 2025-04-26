@@ -2,9 +2,7 @@
 
 #include "simdjson.h"
 #include "util.hpp"
-#include <iostream>
 #include <map>
-#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -90,6 +88,7 @@ namespace json
         {
         }
         DEFAULT_MOVE(view_entry)
+        DISABLE_COPY(view_entry)
 
         std::string_view key;
         std::string_view value;
@@ -98,159 +97,125 @@ namespace json
         flags_t flags;
     };
 
+    constexpr size_t INVALID_IDX = static_cast<size_t>(-1);
+
     class view_model_node
     {
     private:
-        std::map<int, view_model_node *> _backward_skips;
+        // TODO: indents should be size_t
+        std::map<int, size_t> _backward_skips;
         bool _collapsed = false;
 
     public:
         view_entry entry;
-        view_model_node *forward_skip = nullptr;
-        view_model_node *parent;
-        view_model_node *next;
-        view_model_node *prev;
+        size_t idx_skip = INVALID_IDX;
+        size_t idx_parent = INVALID_IDX;
 
-        view_model_node() {};
+        view_model_node() {}
         view_model_node(view_entry &&e) : entry(std::move(e)) {}
         DISABLE_COPY(view_model_node)
         DEFAULT_MOVE(view_model_node)
 
         inline bool collapsed() const { return _collapsed; }
-        inline view_model_node *forward() const { return _collapsed ? forward_skip : next; }
-        inline view_model_node *backward() const
+
+        inline void set_collapsed(bool collapsed) { _collapsed = collapsed; }
+
+        inline size_t backward() const
         {
             auto it = _backward_skips.cbegin();
-            if (it == _backward_skips.cend())
+            if (it != _backward_skips.cend())
             {
-                return prev;
+                return it->second;
             }
-            return it->second;
+            return INVALID_IDX;
         }
 
-        void set_collapse()
-        {
-            if (_collapsed || !entry.flags.collapsible())
-            {
-                return;
-            }
-            _collapsed = true;
-            if (forward_skip)
-            {
-                forward_skip->_backward_skips.insert({entry.indent, this});
-            }
-        }
+        inline void add_backward(int indent, size_t idx) { _backward_skips.insert({indent, idx}); }
 
-        void set_expand()
-        {
-            if (!_collapsed)
-            {
-                return;
-            }
-            _collapsed = false;
-            if (forward_skip)
-            {
-                forward_skip->_backward_skips.erase(entry.indent);
-            }
-        }
+        inline void remove_backward(int indent) { _backward_skips.erase(indent); }
     };
 
     class view_model
     {
     private:
         simdjson::ondemand::parser _parser;
-        std::unique_ptr<view_model_node> _dummy_head;
-        std::unique_ptr<view_model_node> _dummy_tail;
+        std::vector<view_model_node> _nodes;
 
     public:
-        view_model(simdjson::ondemand::parser &&parser)
-            : _parser(std::move(parser)), _dummy_head(std::make_unique<view_model_node>(view_model_node())),
-              _dummy_tail(std::make_unique<view_model_node>(view_model_node()))
-        {
-            _dummy_head->next = _dummy_tail.get();
-            _dummy_head->prev = nullptr;
-            _dummy_head->parent = nullptr;
-            _dummy_head->entry.key = "[HEAD]";
-            _dummy_tail->next = nullptr;
-            _dummy_tail->prev = _dummy_head.get();
-            _dummy_tail->parent = nullptr;
-            _dummy_tail->entry.key = "[TAIL]";
-        }
+        view_model(simdjson::ondemand::parser &&parser) : _parser(std::move(parser)) {}
 
-        ~view_model()
-        {
-            if (!_dummy_head)
-            {
-                return;
-            }
-            auto *cur = _dummy_head->next;
-            while (cur != _dummy_tail.get())
-            {
-                auto *next = cur->next;
-                delete cur;
-                cur = next;
-            }
-        }
-
-        view_model &operator=(view_model &&model)
-        {
-            std::swap(_parser, model._parser);
-            std::swap(_dummy_head, model._dummy_head);
-            std::swap(_dummy_tail, model._dummy_tail);
-            return *this;
-        }
-
-        view_model(view_model &&model) { *this = std::move(model); }
-
+        DEFAULT_MOVE(view_model)
         DISABLE_COPY(view_model)
 
         inline simdjson::ondemand::parser &parser() { return _parser; }
-        inline view_model_node *head() const { return _dummy_head->next; }
-        inline view_model_node *tail() const { return _dummy_tail.get(); }
 
-        view_model_node *append(view_entry &&entry, view_model_node *parent)
+        inline view_model_node &at(size_t i) { return _nodes[i]; }
+
+        inline const view_model_node &at(size_t i) const { return _nodes[i]; }
+
+        inline size_t idx_tail() const { return _nodes.size() - 1; }
+
+        inline size_t forward(size_t idx) const
         {
-            auto *node = new view_model_node(std::move(entry));
-            node->prev = _dummy_tail->prev;
-            node->next = _dummy_tail.get();
-            node->parent = parent;
-            _dummy_tail->prev->next = node;
-            _dummy_tail->prev = node;
-            return node;
+            const auto &node = at(idx);
+            if (!node.collapsed())
+            {
+                return idx + 1;
+            }
+            return node.idx_skip;
         }
 
-        void debug_print()
+        inline size_t backward(size_t idx) const
         {
-            auto *cur = _dummy_head->next;
-            while (cur != _dummy_tail.get())
+            auto prev = at(idx).backward();
+            if (prev == INVALID_IDX)
             {
-                std::cout << "LINE: ";
-                for (size_t i = 0; i < cur->entry.indent; ++i)
-                {
-                    std::cout << "  ";
-                }
-                if (cur->entry.flags.has_key())
-                {
-                    std::cout << cur->entry.key << ": ";
-                }
-                std::cout << cur->entry.value;
-                if (cur->forward_skip)
-                {
-                    std::cout << " (skip to " << cur->forward_skip->entry.key << ")";
-                }
-                if (cur->collapsed())
-                {
-                    std::cout << " [COLLAPSED]";
-                }
-                std::cout << '\n';
-                if (cur->collapsed())
-                {
-                    cur = cur->forward_skip;
-                }
-                else
-                {
-                    cur = cur->next;
-                }
+                return idx - 1;
+            }
+            return prev;
+        }
+
+        size_t append(view_entry &&entry, size_t idx_parent)
+        {
+            auto &node = _nodes.emplace_back(view_model_node(std::move(entry)));
+            node.idx_parent = idx_parent;
+            return _nodes.size() - 1;
+        }
+
+        void set_expand(size_t idx)
+        {
+            auto &node = at(idx);
+            if (!node.collapsed())
+            {
+                return;
+            }
+            node.set_collapsed(false);
+            if (node.idx_skip != INVALID_IDX)
+            {
+                at(node.idx_skip).remove_backward(node.entry.indent);
+            }
+        }
+
+        void set_collapse(size_t idx)
+        {
+            auto &node = at(idx);
+            if (node.collapsed() || !node.entry.flags.collapsible())
+            {
+                return;
+            }
+            node.set_collapsed(true);
+            if (node.idx_skip != INVALID_IDX)
+            {
+                at(node.idx_skip).add_backward(node.entry.indent, idx);
+            }
+        }
+
+        void set_line_nums()
+        {
+            size_t line_num = 0;
+            for (auto &node : _nodes)
+            {
+                node.entry.model_line_num = ++line_num;
             }
         }
     };
