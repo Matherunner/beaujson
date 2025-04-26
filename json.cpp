@@ -101,7 +101,7 @@ namespace json
                 view_entry(key.value_or(""), "{", level, view_entry_kind::object_open, key.has_value()), parent);
             for (auto elem : doc.get_object())
             {
-                doc_to_view_model(model, elem.value(), elem.unescaped_key(), level + 1, parent);
+                doc_to_view_model(model, elem.value(), elem.escaped_key(), level + 1, parent);
             }
             break;
         case sjo::json_type::array:
