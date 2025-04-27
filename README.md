@@ -6,19 +6,6 @@
 
 ![image](https://github.com/user-attachments/assets/2f29334e-53ec-4c4f-8634-a4ebad88e5e4)
 
-## Building
-
-Dependencies are added as subtrees under vendor, so no action needed to fetch them.
-
-To build for release,
-
-```bash
-mkdir build
-cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j
-```
-
 ## Guide
 
 beaujson can load from
@@ -41,3 +28,16 @@ Key bindings:
 - `c`: Copy the primitive value (string, number, boolean, null) of the highlighted line
 - `-`: Collapse all
 - `+` (<kbd>Shift</kbd> + <kbd>=</kbd>): Expand all
+
+## Building
+
+Dependencies are added as subtrees under vendor, so no action needed to fetch them.
+
+To build for release,
+
+```bash
+mkdir build
+cd build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make -j
+```
