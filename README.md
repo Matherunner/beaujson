@@ -1,10 +1,10 @@
 # beaujson
 
-![Blah](https://github.com/Matherunner/beaujson/actions/workflows/cmake-multi-platform.yml/badge.svg)
+![badge](https://github.com/Matherunner/beaujson/actions/workflows/cmake-multi-platform.yml/badge.svg)
 
 ⚠️ Alpha quality ⚠️
 
-![image](https://github.com/user-attachments/assets/2f29334e-53ec-4c4f-8634-a4ebad88e5e4)
+![screenshot](https://github.com/user-attachments/assets/fb374689-a918-4cc1-8dc1-53a4b6f5e19e)
 
 ## Guide
 
