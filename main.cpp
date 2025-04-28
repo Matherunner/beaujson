@@ -357,6 +357,32 @@ private:
 
     inline bool at_bottom() const { return _view_model.forward(_idx_cur) == _view_model.idx_tail(); }
 
+    void scroll_down_and_print(const app_state &state, int lines)
+    {
+        if (at_bottom())
+        {
+            beep();
+        }
+        else
+        {
+            scroll_forward(lines);
+            print_json(state);
+        }
+    }
+
+    void scroll_up_and_print(const app_state &state, int lines)
+    {
+        if (at_top())
+        {
+            beep();
+        }
+        else
+        {
+            scroll_backward(lines);
+            print_json(state);
+        }
+    }
+
 public:
     main_handler(data_source source) : _view_model(load_view_model_from_source(source)) {}
     main_handler(const std::string &file_path) : _view_model(load_view_model_from_file(file_path)) {}
@@ -392,7 +418,7 @@ public:
                 }
             }
         }
-        if (event.move())
+        else if (event.move())
         {
             if (_row_highlight != event.y())
             {
@@ -414,6 +440,14 @@ public:
                 }
                 print_breadcrumb(state);
             }
+        }
+        else if (event.scroll_down())
+        {
+            scroll_down_and_print(state, event.ctrl() ? 5 : 1);
+        }
+        else if (event.scroll_up())
+        {
+            scroll_up_and_print(state, event.ctrl() ? 5 : 1);
         }
         return app_control::ok;
     }
@@ -449,27 +483,11 @@ public:
         case 'j':
         case KEY_DOWN:
         case '\n':
-            if (at_bottom())
-            {
-                beep();
-            }
-            else
-            {
-                scroll_forward(1);
-                print_json(state);
-            }
+            scroll_down_and_print(state, 1);
             break;
         case 'k':
         case KEY_UP:
-            if (at_top())
-            {
-                beep();
-            }
-            else
-            {
-                scroll_backward(1);
-                print_json(state);
-            }
+            scroll_up_and_print(state, 1);
             break;
         case 'f':
         case ' ':
