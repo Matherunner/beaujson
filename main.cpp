@@ -34,7 +34,6 @@ enum class data_source
 
 class main_handler
 {
-private:
     static constexpr int MINIMUM_WIDTH = 16;
 
     std::string _file_name;
@@ -44,21 +43,21 @@ private:
     size_t _idx_cur = json::INVALID_IDX;
     int _row_highlight = -1;
 
-    inline static int content_screen_height(const app_state &state) { return state.rows() - 2; }
+    static int content_screen_height(const app_state &state) { return state.rows() - 2; }
 
-    inline static size_t get_key_width_limit(const app_state &state)
+    static size_t get_key_width_limit(const app_state &state)
     {
         // Account for "<ellipses character>: "
         return state.cols() / 3 - 3;
     }
 
-    inline static size_t get_value_max_col(const app_state &state)
+    static size_t get_value_max_col(const app_state &state)
     {
         // Account for "<ellipses character> [+]"
         return state.cols() - 5;
     }
 
-    size_t idx_at_line(int line) const
+    [[nodiscard]] size_t idx_at_line(const int line) const
     {
         if (line < 0)
         {
@@ -105,11 +104,11 @@ private:
             if (node.entry.flags().has_key())
             {
                 auto it = node.entry.key().cbegin();
-                auto end = node.entry.key().cend();
+                const auto end = node.entry.key().cend();
                 while (it != end)
                 {
                     auto old = it;
-                    int32_t c = utf8::next(it, end);
+                    const auto c = utf8::next(it, end);
                     cur_col += util::is_full_width(c) + 1;
                     if (cur_col > get_key_width_limit(state))
                     {
@@ -130,11 +129,11 @@ private:
             }
             {
                 auto it = node.entry.value().cbegin();
-                auto end = node.entry.value().cend();
+                const auto end = node.entry.value().cend();
                 while (it != end)
                 {
                     auto old = it;
-                    int32_t c = utf8::next(it, end);
+                    const auto c = utf8::next(it, end);
                     cur_col += util::is_full_width(c) + 1;
                     if (cur_col > get_value_max_col(state))
                     {
@@ -161,7 +160,6 @@ private:
                 {
                     _print_buffer += " [-]";
                 }
-                cur_col += 4;
             }
             addstr(_print_buffer.c_str());
             p = _view_model.forward(p);
@@ -176,8 +174,8 @@ private:
 
         if (_row_highlight >= 0)
         {
-            auto idx = idx_at_line(_row_highlight);
-            size_t x = idx != json::INVALID_IDX ? _view_model.at(idx).entry.indent() : 0;
+            const auto idx = idx_at_line(_row_highlight);
+            const size_t x = idx != json::INVALID_IDX ? _view_model.at(idx).entry.indent() : 0;
             if (x < static_cast<size_t>(state.cols()))
             {
                 mvchgat(_row_highlight, static_cast<int>(x), -1, A_STANDOUT, 0, nullptr);
@@ -210,24 +208,24 @@ private:
             {
                 if (node.entry.flags().object_open())
                 {
-                    buffer.push_back("{");
+                    buffer.emplace_back("{");
                 }
                 else if (node.entry.flags().array_open())
                 {
-                    buffer.push_back("[");
+                    buffer.emplace_back("[");
                 }
                 else
                 {
-                    buffer.push_back(".");
+                    buffer.emplace_back(".");
                 }
             }
             else
             {
-                buffer.push_back(node.entry.key());
+                buffer.emplace_back(node.entry.key());
             }
             p = node.idx_parent;
         }
-        std::reverse(buffer.begin(), buffer.end());
+        std::ranges::reverse(buffer);
 
         int cur_col = 0;
         _print_buffer.clear();
@@ -236,12 +234,12 @@ private:
             _print_buffer.push_back('>');
             ++cur_col;
             auto it = elem.cbegin();
-            auto end = elem.cend();
+            const auto end = elem.cend();
             while (it != end)
             {
                 auto old = it;
-                int32_t c = utf8::next(it, end);
-                int new_col = cur_col + util::is_full_width(c) + 1;
+                const auto c = utf8::next(it, end);
+                const int new_col = cur_col + util::is_full_width(c) + 1;
                 if (new_col > state.cols())
                 {
                     break;
@@ -264,7 +262,7 @@ private:
         mvchgat(state.rows() - 2, 0, -1, A_STANDOUT, 0, nullptr);
     }
 
-    void print_status_bar(const app_state &state, size_t idx_last)
+    void print_status_bar(const app_state &state, const size_t idx_last)
     {
         _print_buffer.clear();
         auto it = std::back_inserter(_print_buffer);
@@ -272,7 +270,7 @@ private:
         if (idx_last != json::INVALID_IDX)
         {
             // Get the rightmost descendent
-            auto idx = _view_model.forward(idx_last) - 1;
+            const auto idx = _view_model.forward(idx_last) - 1;
             it = std::format_to(it, "{}", _view_model.at(idx).entry.model_line_num());
         }
         else
@@ -289,7 +287,7 @@ private:
         chgat(-1, A_STANDOUT, 0, nullptr);
     }
 
-    json::view_model load_view_model_from_source(data_source source)
+    json::view_model load_view_model_from_source(const data_source source)
     {
         switch (source)
         {
@@ -319,12 +317,12 @@ private:
     json::view_model load_view_model_from_file(const std::string &file_path)
     {
         _file_name = std::filesystem::path(file_path).filename();
-        auto file_size = std::filesystem::file_size(file_path);
+        const auto file_size = std::filesystem::file_size(file_path);
         _content.reserve(file_size + simdjson::SIMDJSON_PADDING);
         _content.resize(file_size);
         {
             std::ifstream in(file_path, std::ios_base::in | std::ios_base::binary);
-            in.read(_content.data(), file_size);
+            in.read(_content.data(), static_cast<std::streamsize>(file_size));
             if (in.bad())
             {
                 throw std::runtime_error("unable to read file");
@@ -333,7 +331,7 @@ private:
         return json::load(_content);
     }
 
-    void scroll_forward(int n)
+    void scroll_forward(const int n)
     {
         for (int i = 0; i < n && _view_model.forward(_idx_cur) < _view_model.idx_tail(); ++i)
         {
@@ -341,7 +339,7 @@ private:
         }
     }
 
-    void scroll_backward(int n)
+    void scroll_backward(const int n)
     {
         for (int i = 0; i < n && _idx_cur != 0; ++i)
         {
@@ -349,15 +347,15 @@ private:
         }
     }
 
-    inline void scroll_to_top() { _idx_cur = 0; }
+    void scroll_to_top() { _idx_cur = 0; }
 
-    inline void scroll_to_bottom() { _idx_cur = _view_model.backward(_view_model.idx_tail()); }
+    void scroll_to_bottom() { _idx_cur = _view_model.backward(_view_model.idx_tail()); }
 
-    inline bool at_top() const { return _idx_cur == 0; }
+    [[nodiscard]] bool at_top() const { return _idx_cur == 0; }
 
-    inline bool at_bottom() const { return _view_model.forward(_idx_cur) == _view_model.idx_tail(); }
+    [[nodiscard]] bool at_bottom() const { return _view_model.forward(_idx_cur) == _view_model.idx_tail(); }
 
-    void scroll_down_and_print(const app_state &state, int lines)
+    void scroll_down_and_print(const app_state &state, const int lines)
     {
         if (at_bottom())
         {
@@ -370,7 +368,7 @@ private:
         }
     }
 
-    void scroll_up_and_print(const app_state &state, int lines)
+    void scroll_up_and_print(const app_state &state, const int lines)
     {
         if (at_top())
         {
@@ -384,8 +382,8 @@ private:
     }
 
 public:
-    main_handler(data_source source) : _view_model(load_view_model_from_source(source)) {}
-    main_handler(const std::string &file_path) : _view_model(load_view_model_from_file(file_path)) {}
+    explicit main_handler(const data_source source) : _view_model(load_view_model_from_source(source)) {}
+    explicit main_handler(const std::string &file_path) : _view_model(load_view_model_from_file(file_path)) {}
     DISABLE_COPY(main_handler)
     DEFAULT_MOVE(main_handler)
 
@@ -400,10 +398,10 @@ public:
     {
         if (event.left_down())
         {
-            auto p = idx_at_line(event.y());
+            const auto p = idx_at_line(event.y());
             if (p != json::INVALID_IDX)
             {
-                auto &node = _view_model.at(p);
+                const auto &node = _view_model.at(p);
                 if (node.entry.flags().collapsible())
                 {
                     if (node.collapsed())
@@ -424,16 +422,16 @@ public:
             {
                 if (_row_highlight >= 0)
                 {
-                    auto p = idx_at_line(_row_highlight);
-                    size_t x = p != json::INVALID_IDX ? _view_model.at(p).entry.indent() : 0;
+                    const auto p = idx_at_line(_row_highlight);
+                    const size_t x = p != json::INVALID_IDX ? _view_model.at(p).entry.indent() : 0;
                     if (x < static_cast<size_t>(state.cols()))
                     {
                         mvchgat(_row_highlight, static_cast<int>(x), -1, A_NORMAL, 0, nullptr);
                     }
                 }
                 _row_highlight = event.y();
-                auto p = idx_at_line(_row_highlight);
-                size_t x = p != json::INVALID_IDX ? _view_model.at(p).entry.indent() : 0;
+                const auto p = idx_at_line(_row_highlight);
+                const size_t x = p != json::INVALID_IDX ? _view_model.at(p).entry.indent() : 0;
                 if (x < static_cast<size_t>(state.cols()))
                 {
                     mvchgat(event.y(), static_cast<int>(x), -1, A_STANDOUT, 0, nullptr);
@@ -458,7 +456,7 @@ public:
         return app_control::ok;
     }
 
-    app_control key(const app_state &state, int ch)
+    app_control key(const app_state &state, const int ch)
     {
         switch (ch)
         {
@@ -503,10 +501,10 @@ public:
             break;
         case 'c':
         {
-            auto p = idx_at_line(_row_highlight);
+            const auto p = idx_at_line(_row_highlight);
             if (p != json::INVALID_IDX)
             {
-                auto &node = _view_model.at(p);
+                const auto &node = _view_model.at(p);
                 if (node.entry.flags().primitive())
                 {
                     clipboard::set_clipboard_text(node.entry.value());
@@ -561,6 +559,8 @@ public:
             break;
         case 'q':
             return app_control::stop;
+        default:
+            break;
         }
         return app_control::ok;
     }
@@ -604,7 +604,7 @@ static main_handler make_main_handler(const cli_options &opts)
     return main_handler(opts.input_file);
 }
 
-int main(int argc, char **argv)
+int main(const int argc, char **argv)
 {
     std::setlocale(LC_ALL, "");
 
@@ -613,7 +613,7 @@ int main(int argc, char **argv)
     {
         return std::get<int>(opts_or_ret);
     }
-    auto opts = std::move(std::get<cli_options>(opts_or_ret));
+    const auto opts = std::move(std::get<cli_options>(opts_or_ret));
 
     try
     {

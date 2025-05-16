@@ -28,7 +28,7 @@ namespace testutil
         std::vector<char> data;
         data.reserve(file_size + simdjson::SIMDJSON_PADDING);
         data.resize(file_size);
-        in.read(data.data(), file_size);
+        in.read(data.data(), static_cast<std::streamsize>(file_size));
         CHECK_FALSE(in.bad());
         return data;
     }

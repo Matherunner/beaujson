@@ -25,7 +25,6 @@
 
 class tty_file
 {
-private:
     int _fd = -1;
     FILE *_file = nullptr;
 
@@ -43,7 +42,7 @@ private:
         }
     }
 
-    void _cleanup()
+    void _cleanup() const
     {
         if (_fd >= 0)
         {
@@ -61,5 +60,5 @@ public:
     DEFAULT_MOVE(tty_file)
     DISABLE_COPY(tty_file)
 
-    inline FILE *file() const { return _file; }
+    FILE *file() const { return _file; }
 };

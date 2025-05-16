@@ -44,7 +44,7 @@ namespace json
         null,
     };
 
-    constexpr uint32_t entry_kind_to_bits(view_entry_kind kind)
+    constexpr uint32_t entry_kind_to_bits(const view_entry_kind kind)
     {
         switch (kind)
         {
@@ -67,33 +67,31 @@ namespace json
 
     class view_entry_flags
     {
-    private:
         uint32_t _b;
 
     public:
         view_entry_flags() : _b(0) {}
-        view_entry_flags(uint32_t b) : _b(b) {}
+        explicit view_entry_flags(const uint32_t b) : _b(b) {}
 
-        inline uint32_t bits() const { return _b; }
-        inline void set_bits(uint32_t b) { _b = b; }
+        uint32_t bits() const { return _b; }
+        void set_bits(const uint32_t b) { _b = b; }
 
-        inline bool object_open() const { return _b & entry_flag::OBJECT_OPEN_KIND; }
-        inline bool array_open() const { return _b & entry_flag::ARRAY_OPEN_KIND; }
+        bool object_open() const { return _b & entry_flag::OBJECT_OPEN_KIND; }
+        bool array_open() const { return _b & entry_flag::ARRAY_OPEN_KIND; }
 
-        inline bool primitive() const
+        bool primitive() const
         {
             return _b & (entry_flag::NULL_KIND | entry_flag::NUMBER_KIND | entry_flag::STRING_KIND |
                          entry_flag::BOOLEAN_KIND);
         }
 
-        inline bool collapsible() const { return _b & (entry_flag::OBJECT_OPEN_KIND | entry_flag::ARRAY_OPEN_KIND); }
+        bool collapsible() const { return _b & (entry_flag::OBJECT_OPEN_KIND | entry_flag::ARRAY_OPEN_KIND); }
 
-        inline bool has_key() const { return _b & entry_flag::HAS_KEY; }
+        bool has_key() const { return _b & entry_flag::HAS_KEY; }
     };
 
     class view_entry
     {
-    private:
         std::string_view _key;
         std::string_view _value;
         size_t _indent;
@@ -101,28 +99,28 @@ namespace json
         view_entry_flags _flags;
 
     public:
-        view_entry() {}
-        view_entry(std::string_view key, std::string_view value, size_t indent, view_entry_kind kind, bool has_key)
+        view_entry() : _indent(0), _model_line_num(0) {}
+        view_entry(const std::string_view key, const std::string_view value, const size_t indent,
+                   const view_entry_kind kind, const bool has_key)
             : _key(key), _value(value), _indent(indent), _model_line_num(0),
-              _flags(view_entry_flags(entry_kind_to_bits(kind) | (entry_flag::HAS_KEY & -has_key)))
+              _flags(entry_kind_to_bits(kind) | (entry_flag::HAS_KEY & -has_key))
         {
         }
         DEFAULT_MOVE(view_entry)
         DISABLE_COPY(view_entry)
 
-        inline auto indent() const { return _indent; }
-        inline auto flags() const { return _flags; }
-        inline auto key() const { return _key; }
-        inline auto value() const { return _value; }
-        inline auto model_line_num() const { return _model_line_num; }
-        inline void set_model_line_num(size_t value) { _model_line_num = value; }
+        auto indent() const { return _indent; }
+        auto flags() const { return _flags; }
+        auto key() const { return _key; }
+        auto value() const { return _value; }
+        auto model_line_num() const { return _model_line_num; }
+        void set_model_line_num(const size_t value) { _model_line_num = value; }
     };
 
-    constexpr size_t INVALID_IDX = static_cast<size_t>(-1);
+    constexpr auto INVALID_IDX = static_cast<size_t>(-1);
 
     class view_model_node
     {
-    private:
         std::map<size_t, size_t> _backward_skips;
         bool _collapsed = false;
 
@@ -132,17 +130,17 @@ namespace json
         size_t idx_parent = INVALID_IDX;
 
         view_model_node() {}
-        view_model_node(view_entry &&e) : entry(std::move(e)) {}
+        explicit view_model_node(view_entry &&e) : entry(std::move(e)) {}
         DISABLE_COPY(view_model_node)
         DEFAULT_MOVE(view_model_node)
 
-        inline bool collapsed() const { return _collapsed; }
+        bool collapsed() const { return _collapsed; }
 
-        inline void set_collapsed(bool collapsed) { _collapsed = collapsed; }
+        void set_collapsed(const bool collapsed) { _collapsed = collapsed; }
 
-        inline size_t backward() const
+        size_t backward() const
         {
-            auto it = _backward_skips.cbegin();
+            const auto it = _backward_skips.cbegin();
             if (it != _backward_skips.cend())
             {
                 return it->second;
@@ -150,32 +148,31 @@ namespace json
             return INVALID_IDX;
         }
 
-        inline void add_backward(size_t indent, size_t idx) { _backward_skips.insert({indent, idx}); }
+        void add_backward(const size_t indent, const size_t idx) { _backward_skips.insert({indent, idx}); }
 
-        inline void remove_backward(size_t indent) { _backward_skips.erase(indent); }
+        void remove_backward(const size_t indent) { _backward_skips.erase(indent); }
     };
 
     class view_model
     {
-    private:
         simdjson::ondemand::parser _parser;
         std::vector<view_model_node> _nodes;
 
     public:
-        view_model(simdjson::ondemand::parser &&parser) : _parser(std::move(parser)) {}
+        explicit view_model(simdjson::ondemand::parser &&parser) : _parser(std::move(parser)) {}
 
         DEFAULT_MOVE(view_model)
         DISABLE_COPY(view_model)
 
-        inline simdjson::ondemand::parser &parser() { return _parser; }
+        simdjson::ondemand::parser &parser() { return _parser; }
 
-        inline view_model_node &at(size_t i) { return _nodes[i]; }
+        view_model_node &at(const size_t i) { return _nodes[i]; }
 
-        inline const view_model_node &at(size_t i) const { return _nodes[i]; }
+        const view_model_node &at(const size_t i) const { return _nodes[i]; }
 
-        inline size_t idx_tail() const { return _nodes.size() - 1; }
+        size_t idx_tail() const { return _nodes.size() - 1; }
 
-        inline size_t forward(size_t idx) const
+        size_t forward(const size_t idx) const
         {
             const auto &node = at(idx);
             if (!node.collapsed())
@@ -185,9 +182,9 @@ namespace json
             return node.idx_skip;
         }
 
-        inline size_t backward(size_t idx) const
+        size_t backward(const size_t idx) const
         {
-            auto prev = at(idx).backward();
+            const auto prev = at(idx).backward();
             if (prev == INVALID_IDX)
             {
                 return idx - 1;
@@ -195,14 +192,14 @@ namespace json
             return prev;
         }
 
-        size_t append(view_entry &&entry, size_t idx_parent)
+        size_t append(view_entry &&entry, const size_t idx_parent)
         {
-            auto &node = _nodes.emplace_back(view_model_node(std::move(entry)));
+            auto &node = _nodes.emplace_back(std::move(entry));
             node.idx_parent = idx_parent;
             return _nodes.size() - 1;
         }
 
-        void set_expand(size_t idx)
+        void set_expand(const size_t idx)
         {
             auto &node = at(idx);
             if (!node.collapsed())
@@ -216,7 +213,7 @@ namespace json
             }
         }
 
-        void set_collapse(size_t idx)
+        void set_collapse(const size_t idx)
         {
             auto &node = at(idx);
             if (node.collapsed() || !node.entry.flags().collapsible())

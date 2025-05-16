@@ -106,8 +106,8 @@ namespace sjo = simdjson::ondemand;
 
 namespace json
 {
-    static void doc_to_view_model(view_model &model, sjo::value doc, std::optional<std::string_view> key, size_t level,
-                                  size_t idx_parent)
+    static void doc_to_view_model(view_model &model, sjo::value doc, const std::optional<std::string_view> &key,
+                                  const size_t level, size_t idx_parent)
     {
         switch (doc.type())
         {
@@ -116,7 +116,7 @@ namespace json
                 view_entry(key.value_or(""), "{", level, view_entry_kind::object_open, key.has_value()), idx_parent);
             for (auto elem : doc.get_object())
             {
-                doc_to_view_model(model, elem.value(), elem.escaped_key(), level + 1, idx_parent);
+                doc_to_view_model(model, elem.value().value(), elem.escaped_key(), level + 1, idx_parent);
             }
             break;
         case sjo::json_type::array:
@@ -152,11 +152,11 @@ namespace json
         }
     }
 
-    static inline void doc_to_view_model(view_model &model, sjo::document doc)
+    static void doc_to_view_model(view_model &model, sjo::document doc)
     {
         doc_to_view_model(model, doc, std::nullopt, 0, INVALID_IDX);
         // Add sentinel (tail)
-        model.append(json::view_entry(), INVALID_IDX);
+        model.append(view_entry(), INVALID_IDX);
     }
 
     static void add_skips(view_model &model)
@@ -186,7 +186,7 @@ namespace json
                 ++indent;
             }
         }
-        for (auto idx : stack)
+        for (const auto idx : stack)
         {
             model.at(idx).idx_skip = model.idx_tail();
         }

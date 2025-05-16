@@ -16,7 +16,7 @@
 #include "util.hpp"
 #include <cstdio>
 
-constexpr const char *JSON_WHITESPACES = " \t\r\n";
+constexpr auto JSON_WHITESPACES = " \t\r\n";
 
 std::string_view util::trim_space(std::string_view &&input)
 {
@@ -37,7 +37,7 @@ std::string_view util::trim_space(std::string_view &&input)
     return input;
 }
 
-void util::read_all_stdin(std::vector<char> &content, size_t padding_size)
+void util::read_all_stdin(std::vector<char> &content, const size_t padding_size)
 {
     content.reserve(1 << 20);
     size_t bytes;
@@ -46,7 +46,7 @@ void util::read_all_stdin(std::vector<char> &content, size_t padding_size)
     {
         content.insert(content.end(), temp, temp + bytes);
     }
-    size_t min_size = content.size() + padding_size;
+    const size_t min_size = content.size() + padding_size;
     if (content.capacity() < min_size)
     {
         content.reserve(min_size);
