@@ -106,40 +106,47 @@ namespace sjo = simdjson::ondemand;
 
 namespace json
 {
-    static void doc_to_view_model(view_model &model, sjo::value doc, const std::optional<std::string_view> &key,
+    namespace string_views
+    {
+        constexpr auto empty = std::string_view();
+        constexpr auto open_brace = std::string_view("{");
+        constexpr auto open_bracket = std::string_view("[");
+    }
+
+    static void doc_to_view_model(view_model &model, const std::string_view key, const bool has_key, sjo::value doc,
                                   const size_t level)
     {
         switch (doc.type())
         {
         case sjo::json_type::object:
-            model.append(view_entry(key.value_or(""), "{", level, view_entry_kind::object_open, key.has_value()));
+            model.append(view_entry(key, string_views::open_brace, level, view_entry_kind::object_open, has_key));
             for (auto elem : doc.get_object())
             {
-                doc_to_view_model(model, elem.value().value(), elem.escaped_key(), level + 1);
+                doc_to_view_model(model, elem.escaped_key(), true, elem.value().value(), level + 1);
             }
             break;
         case sjo::json_type::array:
-            model.append(view_entry(key.value_or(""), "[", level, view_entry_kind::array_open, key.has_value()));
+            model.append(view_entry(key, string_views::open_bracket, level, view_entry_kind::array_open, has_key));
             for (auto elem : doc.get_array())
             {
-                doc_to_view_model(model, elem.value(), std::nullopt, level + 1);
+                doc_to_view_model(model, string_views::empty, false, elem.value(), level + 1);
             }
             break;
         case sjo::json_type::boolean:
-            model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
-                                    view_entry_kind::boolean, key.has_value()));
+            model.append(
+                view_entry(key, util::trim_space(doc.raw_json_token()), level, view_entry_kind::boolean, has_key));
             break;
         case sjo::json_type::number:
-            model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
-                                    view_entry_kind::number, key.has_value()));
+            model.append(
+                view_entry(key, util::trim_space(doc.raw_json_token()), level, view_entry_kind::number, has_key));
             break;
         case sjo::json_type::string:
-            model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
-                                    view_entry_kind::string, key.has_value()));
+            model.append(
+                view_entry(key, util::trim_space(doc.raw_json_token()), level, view_entry_kind::string, has_key));
             break;
         case sjo::json_type::null:
-            model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
-                                    view_entry_kind::null, key.has_value()));
+            model.append(
+                view_entry(key, util::trim_space(doc.raw_json_token()), level, view_entry_kind::null, has_key));
             break;
         default:
             throw std::logic_error("unknown doc type");
@@ -148,7 +155,7 @@ namespace json
 
     static void doc_to_view_model(view_model &model, sjo::document doc)
     {
-        doc_to_view_model(model, doc, std::nullopt, 0);
+        doc_to_view_model(model, string_views::empty, false, doc, 0);
         // Add sentinel (tail)
         model.append(view_entry());
     }
