@@ -38,6 +38,7 @@ namespace util
     };
 
     std::string_view trim_space(std::string_view &&input);
+    std::string_view &trim_space(std::string_view &input);
     void read_all_stdin(std::vector<char> &content, size_t padding_size);
 
     inline bool is_full_width(const uint32_t ch)

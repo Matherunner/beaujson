@@ -18,7 +18,9 @@
 
 constexpr auto JSON_WHITESPACES = " \t\r\n";
 
-std::string_view util::trim_space(std::string_view &&input)
+std::string_view util::trim_space(std::string_view &&input) { return trim_space(input); }
+
+std::string_view &util::trim_space(std::string_view &input)
 {
     auto idx = input.find_last_not_of(JSON_WHITESPACES);
     if (idx != std::string_view::npos)
