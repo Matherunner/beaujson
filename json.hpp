@@ -19,6 +19,7 @@
 #include "util.hpp"
 #include <map>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace json
@@ -73,21 +74,24 @@ namespace json
         view_entry_flags() : _b(0) {}
         explicit view_entry_flags(const uint32_t b) : _b(b) {}
 
-        uint32_t bits() const { return _b; }
+        [[nodiscard]] uint32_t bits() const { return _b; }
         void set_bits(const uint32_t b) { _b = b; }
 
-        bool object_open() const { return _b & entry_flag::OBJECT_OPEN_KIND; }
-        bool array_open() const { return _b & entry_flag::ARRAY_OPEN_KIND; }
+        [[nodiscard]] bool object_open() const { return _b & entry_flag::OBJECT_OPEN_KIND; }
+        [[nodiscard]] bool array_open() const { return _b & entry_flag::ARRAY_OPEN_KIND; }
 
-        bool primitive() const
+        [[nodiscard]] bool primitive() const
         {
             return _b & (entry_flag::NULL_KIND | entry_flag::NUMBER_KIND | entry_flag::STRING_KIND |
                          entry_flag::BOOLEAN_KIND);
         }
 
-        bool collapsible() const { return _b & (entry_flag::OBJECT_OPEN_KIND | entry_flag::ARRAY_OPEN_KIND); }
+        [[nodiscard]] bool collapsible() const
+        {
+            return _b & (entry_flag::OBJECT_OPEN_KIND | entry_flag::ARRAY_OPEN_KIND);
+        }
 
-        bool has_key() const { return _b & entry_flag::HAS_KEY; }
+        [[nodiscard]] bool has_key() const { return _b & entry_flag::HAS_KEY; }
     };
 
     class view_entry
@@ -109,11 +113,11 @@ namespace json
         DEFAULT_MOVE(view_entry)
         DISABLE_COPY(view_entry)
 
-        auto indent() const { return _indent; }
-        auto flags() const { return _flags; }
-        auto key() const { return _key; }
-        auto value() const { return _value; }
-        auto model_line_num() const { return _model_line_num; }
+        [[nodiscard]] auto indent() const { return _indent; }
+        [[nodiscard]] auto flags() const { return _flags; }
+        [[nodiscard]] auto key() const { return _key; }
+        [[nodiscard]] auto value() const { return _value; }
+        [[nodiscard]] auto model_line_num() const { return _model_line_num; }
         void set_model_line_num(const size_t value) { _model_line_num = value; }
     };
 
@@ -121,7 +125,6 @@ namespace json
 
     class view_model_node
     {
-        std::map<size_t, size_t> _backward_skips;
         bool _collapsed = false;
 
     public:
@@ -129,34 +132,50 @@ namespace json
         size_t idx_skip = INVALID_IDX;
         size_t idx_parent = INVALID_IDX;
 
-        view_model_node() {}
+        view_model_node() = default;
         explicit view_model_node(view_entry &&e) : entry(std::move(e)) {}
         DISABLE_COPY(view_model_node)
         DEFAULT_MOVE(view_model_node)
 
-        bool collapsed() const { return _collapsed; }
+        [[nodiscard]] bool collapsed() const { return _collapsed; }
 
         void set_collapsed(const bool collapsed) { _collapsed = collapsed; }
-
-        size_t backward() const
-        {
-            const auto it = _backward_skips.cbegin();
-            if (it != _backward_skips.cend())
-            {
-                return it->second;
-            }
-            return INVALID_IDX;
-        }
-
-        void add_backward(const size_t indent, const size_t idx) { _backward_skips.insert({indent, idx}); }
-
-        void remove_backward(const size_t indent) { _backward_skips.erase(indent); }
     };
 
     class view_model
     {
         simdjson::ondemand::parser _parser;
         std::vector<view_model_node> _nodes;
+        std::unordered_map<size_t, std::map<size_t, size_t>> _backward_skips;
+
+        auto backward_skips_by_idx(const size_t idx) const
+        {
+            return _backward_skips.contains(idx) ? std::make_optional(std::ref(_backward_skips.at(idx))) : std::nullopt;
+        }
+
+        auto backward_skips_by_idx(const size_t idx)
+        {
+            return _backward_skips.contains(idx) ? std::make_optional(std::ref(_backward_skips.at(idx))) : std::nullopt;
+        }
+
+        void add_backward_skip(const size_t idx_skip, const size_t idx_target, const size_t indent)
+        {
+            backward_skips_by_idx(idx_skip)
+                .or_else(
+                    [this, idx_skip]
+                    {
+                        const auto [it, _] = this->_backward_skips.emplace(idx_skip, std::map<size_t, size_t>{});
+                        return std::make_optional(std::ref(it->second));
+                    })
+                .value()
+                .get()
+                .emplace(indent, idx_target);
+        }
+
+        void remove_backward_skip(const size_t idx_skip, const size_t indent)
+        {
+            backward_skips_by_idx(idx_skip).transform([indent](auto skips) { return skips.get().erase(indent); });
+        }
 
     public:
         explicit view_model(simdjson::ondemand::parser &&parser) : _parser(std::move(parser)) {}
@@ -184,12 +203,18 @@ namespace json
 
         size_t backward(const size_t idx) const
         {
-            const auto prev = at(idx).backward();
-            if (prev == INVALID_IDX)
-            {
-                return idx - 1;
-            }
-            return prev;
+            return backward_skips_by_idx(idx)
+                .transform(
+                    [idx](const auto &skips)
+                    {
+                        const auto it = skips.get().cbegin();
+                        if (it != skips.get().cend())
+                        {
+                            return it->second;
+                        }
+                        return idx - 1;
+                    })
+                .value_or(idx - 1);
         }
 
         size_t append(view_entry &&entry, const size_t idx_parent)
@@ -209,7 +234,7 @@ namespace json
             node.set_collapsed(false);
             if (node.idx_skip != INVALID_IDX)
             {
-                at(node.idx_skip).remove_backward(node.entry.indent());
+                remove_backward_skip(node.idx_skip, node.entry.indent());
             }
         }
 
@@ -223,7 +248,7 @@ namespace json
             node.set_collapsed(true);
             if (node.idx_skip != INVALID_IDX)
             {
-                at(node.idx_skip).add_backward(node.entry.indent(), idx);
+                add_backward_skip(node.idx_skip, idx, node.entry.indent());
             }
         }
 
