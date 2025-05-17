@@ -107,45 +107,39 @@ namespace sjo = simdjson::ondemand;
 namespace json
 {
     static void doc_to_view_model(view_model &model, sjo::value doc, const std::optional<std::string_view> &key,
-                                  const size_t level, size_t idx_parent)
+                                  const size_t level)
     {
         switch (doc.type())
         {
         case sjo::json_type::object:
-            idx_parent = model.append(
-                view_entry(key.value_or(""), "{", level, view_entry_kind::object_open, key.has_value()), idx_parent);
+            model.append(view_entry(key.value_or(""), "{", level, view_entry_kind::object_open, key.has_value()));
             for (auto elem : doc.get_object())
             {
-                doc_to_view_model(model, elem.value().value(), elem.escaped_key(), level + 1, idx_parent);
+                doc_to_view_model(model, elem.value().value(), elem.escaped_key(), level + 1);
             }
             break;
         case sjo::json_type::array:
-            idx_parent = model.append(
-                view_entry(key.value_or(""), "[", level, view_entry_kind::array_open, key.has_value()), idx_parent);
+            model.append(view_entry(key.value_or(""), "[", level, view_entry_kind::array_open, key.has_value()));
             for (auto elem : doc.get_array())
             {
-                doc_to_view_model(model, elem.value(), std::nullopt, level + 1, idx_parent);
+                doc_to_view_model(model, elem.value(), std::nullopt, level + 1);
             }
             break;
         case sjo::json_type::boolean:
             model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
-                                    view_entry_kind::boolean, key.has_value()),
-                         idx_parent);
+                                    view_entry_kind::boolean, key.has_value()));
             break;
         case sjo::json_type::number:
             model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
-                                    view_entry_kind::number, key.has_value()),
-                         idx_parent);
+                                    view_entry_kind::number, key.has_value()));
             break;
         case sjo::json_type::string:
             model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
-                                    view_entry_kind::string, key.has_value()),
-                         idx_parent);
+                                    view_entry_kind::string, key.has_value()));
             break;
         case sjo::json_type::null:
             model.append(view_entry(key.value_or(""), util::trim_space(doc.raw_json_token()), level,
-                                    view_entry_kind::null, key.has_value()),
-                         idx_parent);
+                                    view_entry_kind::null, key.has_value()));
             break;
         default:
             throw std::logic_error("unknown doc type");
@@ -154,9 +148,32 @@ namespace json
 
     static void doc_to_view_model(view_model &model, sjo::document doc)
     {
-        doc_to_view_model(model, doc, std::nullopt, 0, INVALID_IDX);
+        doc_to_view_model(model, doc, std::nullopt, 0);
         // Add sentinel (tail)
-        model.append(view_entry(), INVALID_IDX);
+        model.append(view_entry());
+    }
+
+    static void add_parents(view_model &model)
+    {
+        std::vector<size_t> parents;
+        parents.emplace_back(INVALID_IDX);
+        const auto end = model.idx_tail();
+        for (size_t i = 0; i < end; ++i)
+        {
+            auto &node = model.at(i);
+            if (node.entry.indent() > parents.size() - 1)
+            {
+                parents.emplace_back(i - 1);
+            }
+            else
+            {
+                while (node.entry.indent() < parents.size() - 1)
+                {
+                    parents.pop_back();
+                }
+            }
+            node.idx_parent = parents.back();
+        }
     }
 
     static void add_skips(view_model &model)
@@ -197,6 +214,7 @@ namespace json
         view_model model(sjo::parser{});
         sjo::document doc = model.parser().iterate(content.data(), content.size(), content.capacity());
         doc_to_view_model(model, std::move(doc));
+        add_parents(model);
         add_skips(model);
         model.set_line_nums();
         return model;

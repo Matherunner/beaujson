@@ -195,7 +195,7 @@ class main_handler
         }
 
         auto p = idx_at_line(_row_highlight);
-        if (!p)
+        if (p == json::INVALID_IDX)
         {
             return;
         }

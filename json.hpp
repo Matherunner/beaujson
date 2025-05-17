@@ -192,10 +192,9 @@ namespace json
             return it == skips.cend() ? idx - 1 : it->second;
         }
 
-        size_t append(view_entry &&entry, const size_t idx_parent)
+        size_t append(view_entry &&entry)
         {
-            auto &node = _nodes.emplace_back(std::move(entry));
-            node.idx_parent = idx_parent;
+            _nodes.emplace_back(std::move(entry));
             return _nodes.size() - 1;
         }
 
