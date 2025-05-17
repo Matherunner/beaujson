@@ -152,7 +152,7 @@ class main_handler
             }
             if (node.entry.flags().collapsible())
             {
-                if (node.collapsed())
+                if (_view_model.collapsed(p))
                 {
                     _print_buffer += " [+]";
                 }
@@ -404,7 +404,7 @@ public:
                 const auto &node = _view_model.at(p);
                 if (node.entry.flags().collapsible())
                 {
-                    if (node.collapsed())
+                    if (_view_model.collapsed(p))
                     {
                         _view_model.set_expand(p);
                     }

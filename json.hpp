@@ -125,8 +125,6 @@ namespace json
 
     class view_model_node
     {
-        bool _collapsed = false;
-
     public:
         view_entry entry;
         size_t idx_skip = INVALID_IDX;
@@ -136,10 +134,6 @@ namespace json
         explicit view_model_node(view_entry &&e) : entry(std::move(e)) {}
         DISABLE_COPY(view_model_node)
         DEFAULT_MOVE(view_model_node)
-
-        [[nodiscard]] bool collapsed() const { return _collapsed; }
-
-        void set_collapsed(const bool collapsed) { _collapsed = collapsed; }
     };
 
     class view_model
@@ -147,6 +141,7 @@ namespace json
         simdjson::ondemand::parser _parser;
         std::vector<view_model_node> _nodes;
         std::unordered_map<size_t, std::map<size_t, size_t>> _backward_skips;
+        std::unordered_map<size_t, bool> _collapsed;
 
         void add_backward_skip(const size_t idx_skip, const size_t idx_target, const size_t indent)
         {
@@ -175,14 +170,15 @@ namespace json
 
         size_t idx_tail() const { return _nodes.size() - 1; }
 
+        bool collapsed(const size_t idx) const { return _collapsed.contains(idx) && _collapsed.at(idx); }
+
         size_t forward(const size_t idx) const
         {
-            const auto &node = at(idx);
-            if (!node.collapsed())
+            if (!collapsed(idx))
             {
                 return idx + 1;
             }
-            return node.idx_skip;
+            return at(idx).idx_skip;
         }
 
         size_t backward(const size_t idx) const
@@ -205,12 +201,12 @@ namespace json
 
         void set_expand(const size_t idx)
         {
-            auto &node = at(idx);
-            if (!node.collapsed())
+            if (!collapsed(idx))
             {
                 return;
             }
-            node.set_collapsed(false);
+            _collapsed[idx] = false;
+            const auto &node = at(idx);
             if (node.idx_skip != INVALID_IDX)
             {
                 remove_backward_skip(node.idx_skip, node.entry.indent());
@@ -219,12 +215,12 @@ namespace json
 
         void set_collapse(const size_t idx)
         {
-            auto &node = at(idx);
-            if (node.collapsed() || !node.entry.flags().collapsible())
+            const auto &node = at(idx);
+            if (collapsed(idx) || !node.entry.flags().collapsible())
             {
                 return;
             }
-            node.set_collapsed(true);
+            _collapsed[idx] = true;
             if (node.idx_skip != INVALID_IDX)
             {
                 add_backward_skip(node.idx_skip, idx, node.entry.indent());
