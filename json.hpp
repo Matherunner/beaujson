@@ -148,33 +148,17 @@ namespace json
         std::vector<view_model_node> _nodes;
         std::unordered_map<size_t, std::map<size_t, size_t>> _backward_skips;
 
-        auto backward_skips_by_idx(const size_t idx) const
-        {
-            return _backward_skips.contains(idx) ? std::make_optional(std::ref(_backward_skips.at(idx))) : std::nullopt;
-        }
-
-        auto backward_skips_by_idx(const size_t idx)
-        {
-            return _backward_skips.contains(idx) ? std::make_optional(std::ref(_backward_skips.at(idx))) : std::nullopt;
-        }
-
         void add_backward_skip(const size_t idx_skip, const size_t idx_target, const size_t indent)
         {
-            backward_skips_by_idx(idx_skip)
-                .or_else(
-                    [this, idx_skip]
-                    {
-                        const auto [it, _] = this->_backward_skips.emplace(idx_skip, std::map<size_t, size_t>{});
-                        return std::make_optional(std::ref(it->second));
-                    })
-                .value()
-                .get()
-                .emplace(indent, idx_target);
+            _backward_skips[idx_skip][indent] = idx_target;
         }
 
         void remove_backward_skip(const size_t idx_skip, const size_t indent)
         {
-            backward_skips_by_idx(idx_skip).transform([indent](auto skips) { return skips.get().erase(indent); });
+            if (_backward_skips.contains(idx_skip))
+            {
+                _backward_skips.at(idx_skip).erase(indent);
+            }
         }
 
     public:
@@ -203,18 +187,13 @@ namespace json
 
         size_t backward(const size_t idx) const
         {
-            return backward_skips_by_idx(idx)
-                .transform(
-                    [idx](const auto &skips)
-                    {
-                        const auto it = skips.get().cbegin();
-                        if (it != skips.get().cend())
-                        {
-                            return it->second;
-                        }
-                        return idx - 1;
-                    })
-                .value_or(idx - 1);
+            if (!_backward_skips.contains(idx))
+            {
+                return idx - 1;
+            }
+            const auto &skips = _backward_skips.at(idx);
+            const auto it = skips.cbegin();
+            return it == skips.cend() ? idx - 1 : it->second;
         }
 
         size_t append(view_entry &&entry, const size_t idx_parent)
